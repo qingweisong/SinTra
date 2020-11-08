@@ -49,10 +49,8 @@ if __name__ == '__main__':
     print("The num of pitch = %d" % opt.npitch)
     print("The tempo of music = %d" % opt.tempo)
 
-
-
     #print(real_.shape)
     print('Training set size: %d' % real_.shape[0])
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
     train(opt, Gs, Zs, reals, NoiseAmp)
-    #SinGAN_generate(Gs,Zs,reals,NoiseAmp,opt)
+    SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt)

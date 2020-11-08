@@ -20,15 +20,17 @@ import matplotlib.pyplot as plt
 from SMGAN.training import *
 from config import get_arguments
 
-def SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, gen_start_scale=0,num_samples=50):
+def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=50):
     #if torch.is_tensor(in_s) == False:
     if in_s is None:
         in_s = torch.full(reals[0].shape, 0, device=opt.device)
+        in_s = dim_transformation_to_4(in_s)
     images_cur = []
     for G,Z_opt,noise_amp in zip(Gs,Zs,NoiseAmp):
         pad1 = ((opt.ker_size-1)*opt.num_layer)/2
         m = nn.ZeroPad2d(int(pad1))
         nzx = (Z_opt.shape[2]-pad1*2)*scale_v
+        print(nzx)
         nzy = (Z_opt.shape[3]-pad1*2)*scale_h
 
         images_prev = images_cur
@@ -50,14 +52,11 @@ def SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, gen_start_scale=0,num_samples=5
                 #I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
             else:
                 I_prev = images_prev[i]
-                I_prev = imresize(I_prev,1/opt.scale_factor, opt)
-                if opt.mode != "SR":
-                    I_prev = I_prev[:, :, 0:round(scale_v * reals[n].shape[2]), 0:round(scale_h * reals[n].shape[3])]
-                    I_prev = m(I_prev)
-                    I_prev = I_prev[:,:,0:z_curr.shape[2],0:z_curr.shape[3]]
-                    I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
-                else:
-                    I_prev = m(I_prev)
+                I_prev = imresize(dim_transformation_to_5(I_prev),1/opt.scale_factor, opt)
+                I_prev = dim_transformation_to_4(I_prev)[:, :, 0:round(scale_v * 4 * reals[n].shape[3]), 0:round(scale_h * reals[n].shape[4])]
+                I_prev = m(I_prev)
+                I_prev = I_prev[:,:,0:z_curr.shape[2],0:z_curr.shape[3]]
+                I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
 
             if n < gen_start_scale:
                 z_curr = Z_opt

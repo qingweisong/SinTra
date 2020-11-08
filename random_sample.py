@@ -46,8 +46,8 @@ if __name__ == '__main__':
 
             functions.adjust_scales2phrase(real_, opt)#返回real (max)并得到opt.scale_factor和opt.scale1
             Gs, Zs, reals, NoiseAmp = functions.load_trained_pyramid(opt)
-            in_s = functions.generate_in2coarsest(reals,1,1,opt)
-            SinGAN_generate(Gs, Zs, reals, NoiseAmp, opt,  gen_start_scale=opt.gen_start_scale)
+            in_s = functions.generate_in2coarsest(reals,1,1,opt)#gen_start_scale!=0的话in_s是真图
+            SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt,  gen_start_scale=opt.gen_start_scale)
 
         elif opt.mode == 'random_samples_arbitrary_sizes':
             if opt.input_dir == 'array':
@@ -61,4 +61,4 @@ if __name__ == '__main__':
             functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
             Gs, Zs, reals, NoiseAmp = functions.load_trained_pyramid(opt)
             in_s = functions.generate_in2coarsest(reals,opt.scale_v,opt.scale_h,opt)
-            SinGAN_generate(Gs, Zs, reals, NoiseAmp, opt, in_s, scale_v=opt.scale_v, scale_h=opt.scale_h)
+            SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, in_s, scale_v=opt.scale_v, scale_h=opt.scale_h)

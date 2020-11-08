@@ -108,11 +108,11 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         if (Gs == []):#只有第一阶段有z_opt   生成重构图的噪声
             ########################################！！！！！！！！！！第一阶段噪声每track相同
             z_opt = functions.generate_noise([1,opt.nzx,opt.nzy], device=opt.device)#(1,1,4*h,w)
-            z_opt = m_noise(z_opt.expand(1,real.shape[1],opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
+            z_opt = m_noise(z_opt.expand(1,opt.ntrack,opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
             noise_ = functions.generate_noise([1,opt.nzx,opt.nzy], device=opt.device)#(1,1,4*h,w)
-            noise_ = m_noise(noise_.expand(1,real.shape[1],opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
+            noise_ = m_noise(noise_.expand(1,opt.ntrack,opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
         else:#其他阶段
-            noise_ = functions.generate_noise([real.shape[1],opt.nzx,opt.nzy], num_samp = opt.nsample, device=opt.device)
+            noise_ = functions.generate_noise([opt.ntrack,opt.nzx,opt.nzy], num_samp = opt.nsample, device=opt.device)
             noise_ = m_noise(noise_)
 
         ############################
@@ -127,7 +127,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
             if (j==0) & (epoch == 0):#第一个epoch第一次训练D
                 if (Gs == []):#第一阶段 prev指上一阶段的输出
-                    prev = torch.full([1,real.shape[1],opt.nzx,opt.nzy], 0, device=opt.device)
+                    prev = torch.full([1,opt.ntrack,opt.nzx,opt.nzy], 0, device=opt.device)
                     in_s = prev
                     prev = m_image(prev)
                     #print(prev.shape)
@@ -195,7 +195,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         #bool类型的矩阵   test_round test_bernoulli
         test_round = fake > 0.5
-        test_bernoulli = fake > torch.randn(fake.shape)
+        test_bernoulli = fake > torch.randn(fake.shape)#???
 
 
 

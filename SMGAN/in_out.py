@@ -67,7 +67,9 @@ def midiArrayReshape(array, opt):
     #一小节2s  fs每秒采样次数
     data = array.reshape((shape[0], shape[1], -1, 4, int(4*opt.fs*0.5)))#(6, 128, 31, 4, 96)
     data = data.transpose(2, 0, 3, 4, 1)
-    data = data[0:1, :, :, :, :]
+    data = data[2:3, :, :, :, :]
+    #####输入的是bool类型矩阵(0101)
+    data = (data>0)
     return data
 
 

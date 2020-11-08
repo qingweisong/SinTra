@@ -1,9 +1,10 @@
-"""Utilities for writing piano-rolls to MIDI files."""
+"""Utilities for writing piano-rolls to MIDI files.
+"""
 import numpy as np
 from pypianoroll import Multitrack, Track
 
-
-def get_midi(path, pianorolls, program_nums=None, is_drums=None, track_names=None, velocity=100, tempo=120.0, beat_resolution=24):
+def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
+               track_names=None, velocity=100, tempo=120.0, beat_resolution=24):
     """
     Write the given piano-roll(s) to a single MIDI file.
 
@@ -11,48 +12,47 @@ def get_midi(path, pianorolls, program_nums=None, is_drums=None, track_names=Non
     ---------
     1.filepath : str
         Path to save the MIDI file.
-    2.pianorolls : bool类型np.array, ndim=3
+    2.pianorolls : np.array, ndim=3
         The piano-roll array to be written to the MIDI file. Shape is
         (num_timestep, num_pitch, num_track).
     3.program_nums : int or list of int
-        MIDI program number(s). Available
+        MIDI program number(s) to be assigned to the MIDI track(s). Available
         values are 0 to 127. Must have the same length as `pianorolls`.
     4.is_drums : list of bool
-        Drum indicator(s). True for
-        drums. False for other instruments. Must have the same length as
+        True for drums. False for other instruments. Must have the same length as
         `pianorolls`.
-    5.track_names : list of str
-        Track name(s) to be assigned to the MIDI track(s).
+    5.track_names : str
     """
-    if not np.issubdtype(pianorolls.dtype, np.bool_):#判断数组类型（dtype）是否为bool
+    if not np.issubdtype(pianorolls.dtype, np.bool_):
         raise TypeError("Support only binary-valued piano-rolls")
-    # if isinstance(program_nums, int):
-    #     program_nums = [program_nums]
-    # if isinstance(is_drums, int):
-    #     is_drums = [is_drums]
+    if isinstance(program_nums, int):
+        program_nums = [program_nums]
+    if isinstance(is_drums, int):
+        is_drums = [is_drums]
 
-    #program_nums, is_drums=None时不进入
-    if len(program_nums) != pianorolls.shape[2]:#8
-        raise ValueError("'pianorolls' and 'program_nums' must have the same length")
-    if len(is_drums) != pianorolls.shape[2]:#8
-        raise ValueError("'pianorolls' and 'is_drums' must have the same length")
-    
+    if pianorolls.shape[2] != len(program_nums):
+        raise ValueError("`pianorolls` and `program_nums` must have the same"
+                         "length")
+    if pianorolls.shape[2] != len(is_drums):
+        raise ValueError("`pianorolls` and `is_drums` must have the same"
+                         "length")
     if program_nums is None:
-        program_nums = [0] * len(pianorolls)#96
+        program_nums = [0] * len(pianorolls)
     if is_drums is None:
-        is_drums = [False] * len(pianorolls)#96
-
+        is_drums = [False] * len(pianorolls)
 
     multitrack = Multitrack(beat_resolution=beat_resolution, tempo=tempo)
-    for i in range(pianorolls.shape[2]):
+    for idx in range(pianorolls.shape[2]):
         if track_names is None:
-            track = Track(pianorolls[:, :, i], program_nums[i], is_drums[i])
+            track = Track(pianorolls[..., idx], program_nums[idx],
+                          is_drums[idx])
         else:
-            track = Track(pianorolls[:, :, i], program_nums[i], is_drums[i], track_names[idx])
+            track = Track(pianorolls[..., idx], program_nums[idx],
+                          is_drums[idx], track_names[idx])
         multitrack.append_track(track)
-    multitrack.write(path)
+    multitrack.write(filepath)
 
-def save_midi(opt, path, binarized_phrases):
+def save_midi(filepath, phrases, opt):
     """
     Save a batch of phrases to a single MIDI file.
 
@@ -60,20 +60,22 @@ def save_midi(opt, path, binarized_phrases):
     ---------
     filepath : str
         Path to save the image grid.
-    binarized_phrases : list of np.array
+    phrases : list of np.array
         Phrase arrays to be saved. All arrays must have the same shape.
     pause : int
         Length of pauses (in timestep) to be inserted between phrases.
         Default to 0.
     """
-    if not np.issubdtype(binarized_phrases.dtype, bool_):
+    if not np.issubdtype(phrases.dtype, np.bool_):
         raise TypeError("Support only binary-valued piano-rolls")
-    reshaped = binarized_phrases.reshape(1, binarized_phrases.shape[1] * binarized_phrases.shape[2], 
-                                    binarized_phrases.shape[3], binarized_phrases.shape[4])#(1, 4x96, 84, 8)
-    pad_width = ((0, 0), (0, opt.pause_between_samples),#phrase后的空隙
-                 (opt.lowest_pitch, 128 - opt.lowest_pitch - opt.npitch),#??????????(24, 20)
-                 (0, 0))
-    padded = np.pad(reshaped, pad_width, 'constant')#避免因为卷积运算导致输出图像缩小和图像边缘信息丢失，常常采用numpy.pad()进行填充操作，即在图像四周边缘填充0，使得卷积运算后图像大小不会缩小，同时也不会丢失边缘和角落的信息.
-    pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])#(4x96, 84, 8)
 
-    get_midi(path, pianorolls, opt.programs, opt.is_drum, opt.track_names, tempo = opt.tempo, beat_resolution = opt.beat_resolution)
+    reshaped = phrases.reshape(-1, phrases.shape[1], phrases.shape[2] * phrases.shape[3], phrases.shape[4])
+    print(reshaped.shape)
+    pad_width = ((0, 0), (0, opt.pause_between_samples),
+                 (opt.lowest_pitch,
+                  128 - opt.lowest_pitch - opt.npitch),
+                 (0, 0))
+    padded = np.pad(reshaped, pad_width, 'constant')
+    pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])
+    print(pianorolls.shape)
+    write_midi(filepath, pianorolls, [42] * len(pianorolls), [False] * len(pianorolls), tempo=opt.tempo)
