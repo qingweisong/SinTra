@@ -44,10 +44,15 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
     multitrack = Multitrack(beat_resolution=beat_resolution, tempo=tempo)
     for idx in range(pianorolls.shape[2]):
         if track_names is None:
-            track = Track(pianorolls[..., idx], program_nums[idx],
+            tmp = pianorolls[..., idx]
+            below_pad =  (128 - tmp.shape[1]) // 2
+            fore_pad = 128 - below_pad - tmp.shape[1]
+            tmp = np.pad(tmp, ((0, 0), (below_pad, fore_pad)), "constant")
+            track = Track(tmp, int(program_nums[idx]),
                           is_drums[idx])
+                      
         else:
-            track = Track(pianorolls[..., idx], program_nums[idx],
+            track = Track(pianorolls[:, :, idx], program_nums[idx],
                           is_drums[idx], track_names[idx])
         multitrack.append_track(track)
     multitrack.write(filepath)
@@ -66,16 +71,17 @@ def save_midi(filepath, phrases, opt):
         Length of pauses (in timestep) to be inserted between phrases.
         Default to 0.
     """
+
+    # (phrase, tracks, 4, steps, pitch)
+    # to
+    # (phrase, 4, steps, pitch, tracks)画图
+    phrases = phrases.transpose(0, 2, 3 ,4, 1)
+
     if not np.issubdtype(phrases.dtype, np.bool_):
         raise TypeError("Support only binary-valued piano-rolls")
 
-    reshaped = phrases.reshape(-1, phrases.shape[1], phrases.shape[2] * phrases.shape[3], phrases.shape[4])
-    print(reshaped.shape)
-    pad_width = ((0, 0), (0, opt.pause_between_samples),
-                 (opt.lowest_pitch,
-                  128 - opt.lowest_pitch - opt.npitch),
-                 (0, 0))
+    reshaped = phrases.reshape(-1, phrases.shape[1] * phrases.shape[2], phrases.shape[3], phrases.shape[4])
+    pad_width = ((0, 0), (0, opt.pause_between_samples), (0, 0), (0, 0))
     padded = np.pad(reshaped, pad_width, 'constant')
-    pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])
-    print(pianorolls.shape)
-    write_midi(filepath, pianorolls, [42] * len(pianorolls), [False] * len(pianorolls), tempo=opt.tempo)
+    pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])#(42*4+96, 56, 6)
+    write_midi(filepath, pianorolls, opt.program_num, opt.is_drum, tempo=opt.tempo)

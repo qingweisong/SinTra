@@ -42,14 +42,21 @@ def midi2np(opt):
     print("paded time is [{}]".format(pad_time))
     total_notes = opt.fs * pad_time
     tracks = []
+    is_drum = []
+    program_num = []
     for i in range(trakcs_len):
         if pm.instruments[i].is_drum:
             print("Track [{}] is drum".format(i))
-            continue
+            is_drum.append(True)
+        else:
+            is_drum.append(False)
         track = pm.instruments[i]
+        program_num.append(track.program)
         track.notes.append(pretty_midi.Note(0, 0, pm.get_end_time(), pad_time))
         assert track.get_piano_roll(opt.fs).shape[1] == total_notes, "note length is error"
         tracks.append(track.get_piano_roll(opt.fs))
+    opt.is_drum = is_drum
+    opt.program_num = program_num
     return np.array(tracks)
 
 
@@ -65,7 +72,7 @@ def midiArrayReshape(array, opt):
     assert len(array.shape) == 3, "input dim isn't equal to 3 (tracks, pitch, time)"
     shape = array.shape
     #一小节2s  fs每秒采样次数
-    data = array.reshape((shape[0], shape[1], -1, 4, int(4*opt.fs*0.5)))#(6, 128, 31, 4, 96)
+    data = array.reshape((shape[0], shape[1], -1, opt.nbar, int(opt.nbar*opt.fs*0.5)))#(6, 128, 31, 4, 96)
     data = data.transpose(2, 0, 3, 4, 1)
     data = data[2:3, :, :, :, :]
     #####输入的是bool类型矩阵(0101)

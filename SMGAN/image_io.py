@@ -74,10 +74,11 @@ def save_image(filepath, phrases, shape, inverted=True, grid_width=3,
         if inverted:
             phrases = np.logical_not(phrases)
         clipped = (phrases * 255).astype(np.uint8)
-    else:
+    else:#fake, rec
         if inverted:
             phrases = 1. - phrases
-        clipped = (phrases * 255.).clip(0, 255).astype(np.uint8)#二值化
+        phrases = (phrases>0)
+        clipped = (phrases * 255).astype(np.uint8)#二值化
 
     flipped = np.flip(clipped, 3)
     transposed = flipped.transpose(0, 4, 1, 3, 2)

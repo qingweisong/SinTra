@@ -24,7 +24,7 @@ def get_arguments():
     parser.add_argument('--max_size', type=int,help='image minimal size at the coarser scale', default=128)
 
     #optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=5000, help='number of epochs to train per scale')#epoch
+    parser.add_argument('--niter', type=int, default=1, help='number of epochs to train per scale')#epoch
     parser.add_argument('--gamma',type=float,help='scheduler gamma',default=0.1)
     parser.add_argument('--lr_g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr_d', type=float, default=0.0005, help='learning rate, default=0.0005')
@@ -37,8 +37,6 @@ def get_arguments():
     #Data(array/pianoroll/midi)
     parser.add_argument('--nbar', type=int, default=4)
     parser.add_argument('--ntime', type=int, default=96)
-    parser.add_argument('--npitch', type=int, default=-1)
-    parser.add_argument('--ntrack', type=int, default=-1)
     parser.add_argument('--tempo', type=int, default=-1)
     parser.add_argument('--beat_resolution', type=int, default=24)
     parser.add_argument('--lowest_pitch', type=int, default=0)

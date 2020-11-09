@@ -214,9 +214,9 @@ def dim_transformation_to_4(x):
     x = x.reshape(shape[0], shape[1], shape[2]*shape[3], shape[4])
     return x
 
-def dim_transformation_to_5(x):
+def dim_transformation_to_5(x, opt):
     shape = x.shape
-    x = x.cpu().reshape(shape[0], shape[1], 4, shape[2]//4, shape[3])
+    x = x.cpu().reshape(shape[0], shape[1], opt.nbar, shape[2]//opt.nbar, shape[3])
     return x
 
 # ============================ imresize ============================

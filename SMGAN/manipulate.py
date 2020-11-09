@@ -30,7 +30,6 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
         pad1 = ((opt.ker_size-1)*opt.num_layer)/2
         m = nn.ZeroPad2d(int(pad1))
         nzx = (Z_opt.shape[2]-pad1*2)*scale_v
-        print(nzx)
         nzy = (Z_opt.shape[3]-pad1*2)*scale_h
 
         images_prev = images_cur
@@ -52,7 +51,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 #I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
             else:
                 I_prev = images_prev[i]
-                I_prev = imresize(dim_transformation_to_5(I_prev),1/opt.scale_factor, opt)
+                I_prev = imresize(dim_transformation_to_5(I_prev, opt),1/opt.scale_factor, opt)
                 I_prev = dim_transformation_to_4(I_prev)[:, :, 0:round(scale_v * 4 * reals[n].shape[3]), 0:round(scale_h * reals[n].shape[4])]
                 I_prev = m(I_prev)
                 I_prev = I_prev[:,:,0:z_curr.shape[2],0:z_curr.shape[3]]

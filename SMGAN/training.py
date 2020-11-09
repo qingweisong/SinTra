@@ -189,13 +189,13 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         z_opt2plot.append(rec_loss)
 
         #5->4
-        fake = dim_transformation_to_5(fake.detach())
+        fake = dim_transformation_to_5(fake.detach(), opt)
         rec = netG(Z_opt.detach(), z_prev).detach()
-        rec = dim_transformation_to_5(rec)
+        rec = dim_transformation_to_5(rec, opt)
 
         #bool类型的矩阵   test_round test_bernoulli
         test_round = fake > 0.5
-        test_bernoulli = fake > torch.randn(fake.shape)#???
+        test_bernoulli = fake > torch.rand(fake.shape)#均匀分布
 
 
 
@@ -241,7 +241,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
                 G_z = G(z_in.detach(),G_z)
-                G_z = imresize(dim_transformation_to_5(G_z),1/opt.scale_factor,opt)#上采样到下一尺度大小
+                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)#上采样到下一尺度大小
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
 
                 count += 1
@@ -253,7 +253,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 z_in = noise_amp*Z_opt+G_z
                 G_z = G(z_in.detach(),G_z)
 
-                G_z = imresize(dim_transformation_to_5(G_z),1/opt.scale_factor,opt)
+                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
                 #if count != (len(Gs)-1):
                 #    G_z = m_image(G_z)
