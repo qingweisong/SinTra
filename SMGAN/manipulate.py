@@ -61,7 +61,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 z_curr = Z_opt
 
             z_in = noise_amp*(z_curr)+I_prev
-            I_curr = G(z_in.detach(),I_prev)
+            I_curr = G(z_in.detach(),I_prev)#tensor 4
 
             if n == len(reals)-1:
                 if opt.mode == 'train':
@@ -72,7 +72,10 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     os.makedirs(dir2save)
                 except OSError:
                     pass
-
+                fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
+                save_image('%s/%d.png' % (dir2save, i), fake, (1,1))
+                binarized = (fake)>0
+                save_midi('%s/%d.mid' % (dir2save, i), binarized, opt)
                     #plt.imsave('%s/%d_%d.png' % (dir2save,i,n),functions.convert_image_np(I_curr.detach()), vmin=0, vmax=1)
                     #plt.imsave('%s/in_s.png' % (dir2save), functions.convert_image_np(in_s), vmin=0,vmax=1)
             images_cur.append(I_curr)

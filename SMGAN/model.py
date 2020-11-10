@@ -54,7 +54,7 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             self.body.add_module('block%d'%(i+1),block)
         self.tail = nn.Sequential(
             nn.Conv2d(max(N,opt.min_nfc),opt.ntrack,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
-            nn.Tanh()
+            nn.Sigmoid()
         )
     def forward(self,x,y):
         x = self.head(x)

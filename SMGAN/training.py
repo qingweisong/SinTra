@@ -39,6 +39,9 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         print("************* Save real_scale **************")
         print(reals[num_scale].shape)
         save_image('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), (1, 1))
+        real_scale = functions.convert_image_np(reals[num_scale])
+        binarized_real_scale = (real_scale > 0)
+        save_midi('%s/real_scale.mid' % (opt.outp), binarized_real_scale, opt)
         #array2png(functions.convert_image_np(reals[num_scale]), '%s/real_scale.png' % (opt.outp))
         #plt.imsave('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), vmin = 0, vmax = 1)
         
@@ -188,14 +191,14 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         errG2plot.append(errG.detach()+rec_loss.detach())
         z_opt2plot.append(rec_loss)
 
-        #5->4
-        fake = dim_transformation_to_5(fake.detach(), opt)
+        #4tendor->5np
+        fake = dim_transformation_to_5(fake.detach(), opt).numpy()
         rec = netG(Z_opt.detach(), z_prev).detach()
         rec = dim_transformation_to_5(rec, opt)
 
         #bool类型的矩阵   test_round test_bernoulli
         test_round = fake > 0.5
-        test_bernoulli = fake > torch.rand(fake.shape)#均匀分布
+        test_bernoulli = fake > torch.rand(fake.shape).numpy()#均匀分布
 
 
 
@@ -204,9 +207,9 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         # run sampler
         if epoch % 500 == 0 or epoch == (opt.niter-1):
-            run_sampler(opt, functions.convert_image_np(fake), epoch)
-            run_sampler(opt, functions.convert_image_np(test_round), epoch, postfix='round')
-            run_sampler(opt, functions.convert_image_np(test_bernoulli), epoch, postfix='bernoulli')
+            run_sampler(opt, fake, epoch)
+            run_sampler(opt, test_round, epoch, postfix='round')
+            run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
         
             #plt.imsave('%s/fake_sample.png' %  (opt.outp), functions.convert_image_np(fake.detach()), vmin=0, vmax=1)
             #plt.imsave('%s/G(z_opt).png' % (opt.outp),  functions.convert_image_np(netG(Z_opt.detach(), z_prev).detach()), vmin=0, vmax=1)
@@ -214,6 +217,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             
             #array2png(functions.convert_image_np(fake.detach()), '%s/fake_sample.png' % (opt.outp))
             save_image('%s/G(z_opt).png' % (opt.outp), functions.convert_image_np(rec), (1, 1))
+            binarized_rec = (functions.convert_image_np(rec))>0
+            save_midi('%s/G(z_opt).png' % (opt.outp), binarized_rec, opt)
             torch.save(z_opt, '%s/z_opt.pth' % (opt.outp))
 
         schedulerD.step()
