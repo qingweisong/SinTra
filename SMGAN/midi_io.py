@@ -77,6 +77,8 @@ def save_midi(filepath, phrases, opt):
     # (phrase, 4, steps, pitch, tracks)画图
     phrases = phrases.transpose(0, 2, 3 ,4, 1)
 
+    phrases = (phrases>0)
+
     if not np.issubdtype(phrases.dtype, np.bool_):
         raise TypeError("Support only binary-valued piano-rolls")
 

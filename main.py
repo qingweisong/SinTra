@@ -48,6 +48,10 @@ if __name__ == '__main__':
     print("The num of instruments = %d" % opt.ntrack)
     print("The num of pitch = %d" % opt.npitch)
     print("The tempo of music = %d" % opt.tempo)
+    print("The max of velocity = %d" % max(opt.vel_max))
+    print("The min of velocity = %d" % min(opt.vel_min))
+
+
 
     #print(real_.shape)
     print('Training set size: %d' % real_.shape[0])

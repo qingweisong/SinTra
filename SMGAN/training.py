@@ -23,7 +23,13 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
-    reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型)
+    reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
+
+    # binary
+    reals_b = []
+    for sub_tensor in reals:
+        reals_b.append(((sub_tensor > 50) * 1.0).float())
+    reals = reals_b
 
     while num_scale < opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
@@ -38,13 +44,10 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         
         print("************* Save real_scale **************")
         print(reals[num_scale].shape)
-        save_image('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), (1, 1))
         real_scale = functions.convert_image_np(reals[num_scale])
-        binarized_real_scale = (real_scale > 0)
-        save_midi('%s/real_scale.mid' % (opt.outp), binarized_real_scale, opt)
-        #array2png(functions.convert_image_np(reals[num_scale]), '%s/real_scale.png' % (opt.outp))
-        #plt.imsave('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), vmin = 0, vmax = 1)
-        
+        save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
+        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
+
         
         #初始化D,G模型       打印网络结构
         G_curr, D_curr= init_models(opt)
@@ -124,9 +127,9 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         for j in range(opt.Dsteps):
             netD.zero_grad()
             output = netD(real).to(opt.device)#real 4dim
-            errD_real = -output.mean()
+            errD_real = output.mean()
             errD_real.backward(retain_graph = True)
-            D_x = -errD_real.item()
+            D_x = errD_real.item()
 
             if (j==0) & (epoch == 0):#第一个epoch第一次训练D
                 if (Gs == []):#第一阶段 prev指上一阶段的输出
@@ -157,9 +160,9 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
             fake = netG(noise.detach(),prev)
             output = netD(fake.detach())
-            errD_fake = output.mean()
+            errD_fake = -output.mean()
             errD_fake.backward(retain_graph=True)
-            D_G_z = output.mean().item()
+            D_G_z = -output.mean().item()
 
             gradient_penalty = functions.calc_gradient_penalty(netD, real, fake, opt.lambda_grad, opt.device)#具有梯度惩罚的WGAN（WGAN with gradient penalty）gradient penelty weight=0.1
             gradient_penalty.backward()
@@ -194,7 +197,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         #4tendor->5np
         fake = dim_transformation_to_5(fake.detach(), opt).numpy()
         rec = netG(Z_opt.detach(), z_prev).detach()
-        rec = dim_transformation_to_5(rec, opt)
+        rec = dim_transformation_to_5(rec, opt).numpy()
 
         #bool类型的矩阵   test_round test_bernoulli
         test_round = fake > 0.5
@@ -204,25 +207,24 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         if epoch % 100 == 0 or epoch == (opt.niter-1):
             print('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
-
+            print("errD = %f" % errD)
+            print("errG = %f" % errG)
+            print("rec_loss = %f" % rec_loss)
         # run sampler
         if epoch % 500 == 0 or epoch == (opt.niter-1):
             run_sampler(opt, fake, epoch)
             run_sampler(opt, test_round, epoch, postfix='round')
             run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
         
-            #plt.imsave('%s/fake_sample.png' %  (opt.outp), functions.convert_image_np(fake.detach()), vmin=0, vmax=1)
-            #plt.imsave('%s/G(z_opt).png' % (opt.outp),  functions.convert_image_np(netG(Z_opt.detach(), z_prev).detach()), vmin=0, vmax=1)
-
-            
-            #array2png(functions.convert_image_np(fake.detach()), '%s/fake_sample.png' % (opt.outp))
-            save_image('%s/G(z_opt).png' % (opt.outp), functions.convert_image_np(rec), (1, 1))
-            binarized_rec = (functions.convert_image_np(rec))>0
-            save_midi('%s/G(z_opt).png' % (opt.outp), binarized_rec, opt)
+            save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
+            save_midi('%s/G(z_opt).mid' % (opt.outp), rec, opt)
             torch.save(z_opt, '%s/z_opt.pth' % (opt.outp))
 
         schedulerD.step()
         schedulerG.step()
+
+        #probar = Progbar(total, width=20, stateful_metrics=['epoch', 'iter', 'mean_gate', 'max_gate', 'min_gate'])
+
 
     functions.save_networks(netG, netD, z_opt, opt)
     return z_opt, in_s, netG

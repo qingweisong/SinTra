@@ -76,8 +76,6 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 save_image('%s/%d.png' % (dir2save, i), fake, (1,1))
                 binarized = (fake)>0
                 save_midi('%s/%d.mid' % (dir2save, i), binarized, opt)
-                    #plt.imsave('%s/%d_%d.png' % (dir2save,i,n),functions.convert_image_np(I_curr.detach()), vmin=0, vmax=1)
-                    #plt.imsave('%s/in_s.png' % (dir2save), functions.convert_image_np(in_s), vmin=0,vmax=1)
             images_cur.append(I_curr)
         n+=1
     return I_curr.detach()

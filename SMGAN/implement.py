@@ -12,9 +12,8 @@ def save_samples(opt, filename, samples):
     save_image(imagepath, samples, (1,1))
     #image_io.save_image(opt, imagepath, samples)
     
-    binarized = (samples > 0)#再次二值化
     midipath = '%s/%s.mid' % (opt.outp, filename) 
-    save_midi(midipath, binarized, opt)
+    save_midi(midipath, samples, opt)
     #piano_roll2midifile(binarized, midipath, opt)
 
 
