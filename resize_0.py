@@ -21,12 +21,12 @@ def resize_0(image_5d, scale):
 
     # resize on pitch 
     for i in range(shape[1]):
-        pitch_mean = dedim_image[0, i, :, :].nonzero()[1]
+        pitch_mean = dedim_image[:, i, :, :].nonzero()[2]
         if len(pitch_mean) == 0:
             pitch_mean = 64
         else:
             pitch_mean = round(pitch_mean.mean())
-        scale_pitch_image[0, i, :, :, :] = image_5d[0, i, :, :, int(pitch_mean-int(0.5*reserve_pitch)):math.floor(pitch_mean+int(0.5 * reserve_pitch))]
+        scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, int(pitch_mean-int(0.5*reserve_pitch)):math.floor(pitch_mean+int(0.5 * reserve_pitch))]
 
     # resize on step
     for track in range(result.shape[1]):
@@ -34,7 +34,7 @@ def resize_0(image_5d, scale):
             for y in range(result.shape[4]):
                 for x in range(result.shape[3]):
                     x_ = np.clip(round(x/scale), 0, scale_pitch_image.shape[3])
-                    result[0, track, bar, x, y] = scale_pitch_image[0, track, bar, x_, y]
+                    result[:, track, bar, x, y] = scale_pitch_image[:, track, bar, x_, y]
 
     print(result.shape)
     return result

@@ -51,7 +51,9 @@ if __name__ == '__main__':
     print("The max of velocity = %d" % max(opt.vel_max))
     print("The min of velocity = %d" % min(opt.vel_min))
 
-
+    # t = resize_0(real_, 2)
+    # save_image("./test_big.png", t, (1,-1))
+    # exit(0)
 
     #print(real_.shape)
     print('Training set size: %d' % real_.shape[0])

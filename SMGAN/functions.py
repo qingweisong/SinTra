@@ -105,7 +105,7 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_velocity/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
@@ -239,7 +239,8 @@ def torch2uint8(x):#np数组是unit类型
 
 def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
     #x = x/255
-    x = torch.from_numpy(x)
+    if type(x) == np.ndarray:
+        x = torch.from_numpy(x)
     if (torch.cuda.is_available()):
         x = x.to(torch.device('cuda'))
     x = x.type(torch.cuda.FloatTensor)
@@ -248,13 +249,77 @@ def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
 
 
 #np->torch   维度不变
-def imresize(im, scale, opt):
+def imresize(im, scale, opt, is_net=False):
     #im = torch2uint8(im)
     im = imresize_in(im, scale_factor=scale)
     im = np2torch(im)
     #im = im[:, :, 0:int(scale * s[2]), 0:int(scale * s[3])]
     return im
 
+def resize_0(image_5d, scale_factor, is_net=False):
+    """
+    This function will cut pitch near the mean of picth
+    
+    Inputs:
+        image_5d: 5d (1, 6, 4, 96, 128)
+        scale_factor: <1
+    Outputs:
+        images after scale_factor
+    """
+    assert image_5d.shape[0] == 1, "input phrase amount =/= 1"
+    if scale_factor == 1.0:
+        return image_5d
+    if scale_factor < 1.0:
+        shape = image_5d.shape
+        reserve_pitch = math.ceil(shape[4] * scale_factor)
+        dedim_image = image_5d.reshape(shape[0], shape[1], -1, shape[4])
+        scale_pitch_image = np.zeros((shape[0], shape[1], shape[2], shape[3], math.ceil(shape[4] * scale_factor)))
+        
+        result = np.zeros((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+
+        # resize on pitch 
+        for i in range(shape[1]):
+            pitch_mean = dedim_image[:, i, :, :].nonzero()[2]
+            if len(pitch_mean) == 0:
+                pitch_mean = 64
+            else:
+                pitch_mean = math.ceil(pitch_mean.mean())
+            
+            if math.ceil(0.5 * reserve_pitch)  > pitch_mean:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, 0: reserve_pitch]
+            elif math.ceil(0.5 * reserve_pitch) > 128 - pitch_mean:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, 128 - reserve_pitch: ]
+            else:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, int(pitch_mean-int(0.5*reserve_pitch)):int(pitch_mean-int(0.5*reserve_pitch)) + reserve_pitch]
+            
+
+        # resize on step
+        for track in range(result.shape[1]):
+            for bar in range(4):
+                for y in range(result.shape[4]):
+                    for x in range(result.shape[3]):
+                        x_ = np.clip(math.ceil(x/scale_factor), 0, scale_pitch_image.shape[3] - 1)
+                        result[:, track, bar, x, y] = scale_pitch_image[:, track, bar, x_, y]
+        return result
+    else:
+        # scale > 1.0
+        shape = image_5d.shape
+        reserve_pitch = math.ceil(shape[4] * scale_factor)
+        dedim_image = image_5d.reshape(shape[0], shape[1], -1, shape[4])
+        scale_pitch_image = np.zeros((shape[0], shape[1], shape[2], shape[3], math.ceil(shape[4] * scale_factor)))
+        scale_pitch_image[:, :, :, :, math.ceil(scale_pitch_image.shape[4] * 0.5) - math.ceil(shape[4]*0.5):math.ceil(scale_pitch_image.shape[4] * 0.5) - math.ceil(shape[4]*0.5) + shape[4]] = image_5d
+        if is_net:
+            result = np.randn((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+        else:
+            result = np.zeros((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+        # resize on step
+        for track in range(result.shape[1]):
+            for bar in range(4):
+                for y in range(result.shape[4]):
+                    for x in range(result.shape[3]):
+                        x_ = np.clip(math.ceil(x/scale_factor), 0, scale_pitch_image.shape[3] - 1)
+                        result[:, track, bar, x, y] = scale_pitch_image[:, track, bar, x_, y]
+        return result
 
 def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialiasing=True, kernel_shift_flag=False):
     scale_factor, output_shape = fix_size(im.shape, output_shape, scale_factor)

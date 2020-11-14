@@ -28,8 +28,11 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     # binary
     reals_b = []
     for sub_tensor in reals:
-        reals_b.append(((sub_tensor > 50) * 1.0).float())
+        reals_b.append(((sub_tensor >0) * 1.0).float())
     reals = reals_b
+
+    # for i in range(len(reals)):
+    #     save_image('real_%d.png' % i, reals[i].cpu().numpy(), (1, 1))
 
     while num_scale < opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
@@ -207,9 +210,9 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         if epoch % 100 == 0 or epoch == (opt.niter-1):
             print('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
-            print("errD = %f" % errD)
-            print("errG = %f" % errG)
-            print("rec_loss = %f" % rec_loss)
+            # print("errD = %f" % errD)
+            # print("errG = %f" % errG)
+            # print("rec_loss = %f" % rec_loss)
         # run sampler
         if epoch % 500 == 0 or epoch == (opt.niter-1):
             run_sampler(opt, fake, epoch)
