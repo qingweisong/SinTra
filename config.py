@@ -20,7 +20,7 @@ def get_arguments():
     #pyramid parameters:
     parser.add_argument('--scale_factor',type=float,help='pyramid scale factor',default=0.75)#pow(0.5,1/6))
     parser.add_argument('--noise_amp',type=float,help='addative noise cont weight',default=0.1)
-    parser.add_argument('--min_size',type=int,help='image minimal size at the coarser scale',default=42)
+    parser.add_argument('--min_size',type=int,help='image minimal size at the coarser scale',default=20)
     parser.add_argument('--max_size', type=int,help='image minimal size at the coarser scale', default=128)
 
     #optimization hyper parameters:
@@ -32,13 +32,11 @@ def get_arguments():
     parser.add_argument('--Gsteps',type=int, help='Generator inner steps',default=3)#??????????????????????????????????
     parser.add_argument('--Dsteps',type=int, help='Discriminator inner steps',default=3)#??????????????????????????????
     parser.add_argument('--lambda_grad',type=float, help='gradient penelty weight',default=0.1)
-    parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=10)
+    parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=100)
 
     #Data(array/pianoroll/midi)
     parser.add_argument('--nbar', type=int, default=4)
     parser.add_argument('--ntime', type=int, default=96)
-    parser.add_argument('--npitch', type=int, default=-1)
-    parser.add_argument('--ntrack', type=int, default=-1)
     parser.add_argument('--tempo', type=int, default=-1)
     parser.add_argument('--beat_resolution', type=int, default=24)
     parser.add_argument('--lowest_pitch', type=int, default=0)

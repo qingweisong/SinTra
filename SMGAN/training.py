@@ -9,6 +9,13 @@ import torch.optim as optim
 import torch.utils.data
 import math
 import matplotlib.pyplot as plt
+import wandb
+
+wandb.init(
+    project="single-musegan",
+    config = {
+    }
+)
 
 def train(opt, Gs, Zs, reals, NoiseAmp):
     in_s = 0#
@@ -23,7 +30,13 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
-    reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型)
+    reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
+
+    # # binary
+    # reals_b = []
+    # for sub_tensor in reals:
+    #     reals_b.append(((sub_tensor >0) * 1.0).float())
+    # reals = reals_b
 
     while num_scale < opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
@@ -39,10 +52,9 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         print("************* Save real_scale **************")
         print(reals[num_scale].shape)
         save_image('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), (1, 1))
-        #array2png(functions.convert_image_np(reals[num_scale]), '%s/real_scale.png' % (opt.outp))
-        #plt.imsave('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), vmin = 0, vmax = 1)
-        
-        
+        save_midi('%s/real_scale.mid' % (opt.outp), functions.convert_image_np(reals[num_scale]), opt)
+
+
         #初始化D,G模型       打印网络结构
         G_curr, D_curr= init_models(opt)
         if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
@@ -188,32 +200,32 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         errG2plot.append(errG.detach()+rec_loss.detach())
         z_opt2plot.append(rec_loss)
 
-        #5->4
-        fake = dim_transformation_to_5(fake.detach())
+        #4tendor->5np
+        fake = dim_transformation_to_5(fake.detach(), opt).numpy()
         rec = netG(Z_opt.detach(), z_prev).detach()
-        rec = dim_transformation_to_5(rec)
+        rec = dim_transformation_to_5(rec, opt).numpy()
 
         #bool类型的矩阵   test_round test_bernoulli
         test_round = fake > 0.5
-        test_bernoulli = fake > torch.randn(fake.shape)#???
+        test_bernoulli = fake > torch.rand(fake.shape).numpy()#???
 
 
 
-        if epoch % 100 == 0 or epoch == (opt.niter-1):
+        if epoch % 10 == 0 or epoch == (opt.niter-1):
             print('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
-
+            wandb.log({
+                "errD [%d]"%len(Gs): errD,
+                "errG [%d]"%len(Gs): errG,
+                "rec_loss [%d]"%len(Gs): rec_loss
+            })
         # run sampler
         if epoch % 500 == 0 or epoch == (opt.niter-1):
-            run_sampler(opt, functions.convert_image_np(fake), epoch)
-            run_sampler(opt, functions.convert_image_np(test_round), epoch, postfix='round')
-            run_sampler(opt, functions.convert_image_np(test_bernoulli), epoch, postfix='bernoulli')
+            run_sampler(opt, fake, epoch)
+            run_sampler(opt, test_round, epoch, postfix='round')
+            run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
         
-            #plt.imsave('%s/fake_sample.png' %  (opt.outp), functions.convert_image_np(fake.detach()), vmin=0, vmax=1)
-            #plt.imsave('%s/G(z_opt).png' % (opt.outp),  functions.convert_image_np(netG(Z_opt.detach(), z_prev).detach()), vmin=0, vmax=1)
-
-            
-            #array2png(functions.convert_image_np(fake.detach()), '%s/fake_sample.png' % (opt.outp))
-            save_image('%s/G(z_opt).png' % (opt.outp), functions.convert_image_np(rec), (1, 1))
+            save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
+            save_midi('%s/G(z_opt).mid' % (opt.outp), rec, opt)
             torch.save(z_opt, '%s/z_opt.pth' % (opt.outp))
 
         schedulerD.step()
@@ -241,7 +253,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
                 G_z = G(z_in.detach(),G_z)
-                G_z = imresize(dim_transformation_to_5(G_z),1/opt.scale_factor,opt)#上采样到下一尺度大小
+                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)#上采样到下一尺度大小
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
 
                 count += 1
@@ -253,7 +265,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 z_in = noise_amp*Z_opt+G_z
                 G_z = G(z_in.detach(),G_z)
 
-                G_z = imresize(dim_transformation_to_5(G_z),1/opt.scale_factor,opt)
+                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
                 #if count != (len(Gs)-1):
                 #    G_z = m_image(G_z)

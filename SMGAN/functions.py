@@ -105,12 +105,12 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s_11.9_wandb/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
-        dir2save = '%Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
+        dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
     elif opt.mode == 'random_samples_arbitrary_sizes':
-        dir2save = '%Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.input_phrase[:-4], opt.scale_v, opt.scale_h)
+        dir2save = 'Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.input_phrase[:-4], opt.scale_v, opt.scale_h)
     return dir2save
 
 
@@ -150,7 +150,7 @@ def post_config(opt):
 
 
 def generate_in2coarsest(reals,scale_v,scale_h,opt):
-    real = reals[opt.gen_start_scale]
+    real = reals[opt.gen_start_scale]#5
     real_down = upsampling(real, scale_v * real.shape[3], scale_h * real.shape[4])
     if opt.gen_start_scale == 0:
         in_s = torch.full(real_down.shape, 0, device=opt.device)
@@ -214,9 +214,9 @@ def dim_transformation_to_4(x):
     x = x.reshape(shape[0], shape[1], shape[2]*shape[3], shape[4])
     return x
 
-def dim_transformation_to_5(x):
+def dim_transformation_to_5(x, opt):
     shape = x.shape
-    x = x.cpu().reshape(shape[0], shape[1], 4, shape[2]//4, shape[3])
+    x = x.cpu().reshape(shape[0], shape[1], opt.nbar, shape[2]//opt.nbar, shape[3])
     return x
 
 # ============================ imresize ============================

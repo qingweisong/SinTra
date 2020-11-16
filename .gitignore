@@ -1,4 +1,5 @@
 __pycache__/
 TrainedModels/
 training_data/
-
+Output/
+wandb/
