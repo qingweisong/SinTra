@@ -369,6 +369,60 @@ def cubic(x):
             (-0.5*absx3 + 2.5*absx2 - 4*absx + 2) * ((1 < absx) & (absx <= 2)))
 
 
+def denoise_2D(x):
+    '''
+    This function delete isolate point
+        Inputs:
+            x: 2D (time, pitch)
+
+    '''
+    shape = x.shape
+    for t in range(shape[0]):
+        for p in range(shape[1]):
+            # max_len = shape[0] - 1
+            # left_1 = t-1 if t-1 >0 else 0
+            # right_1 = t + 1 if (t + 1) < shape[0] else max_len
+
+            # left_2 = t-2 if t-2 >0 else 0
+            # right_2 = t + 2 if (t + 2) < shape[0] else max_len
+
+            # left_3 = t-3 if t-3 >0 else 0
+            # right_3 = t + 3 if (t + 3) < shape[0] else max_len
+
+            # if (x[t, p] > 0) & (
+            #         ((x[right_1, p] > 0) | (x[left_1, p] > 0)) |
+            #         ((x[right_2, p] > 0) | (x[left_2, p] > 0)) 
+            #         ):
+            #     pass
+            # else:
+            #     x[t, p] = 0
+
+            val = (x[t-2: t+3, p] > 0).sum()
+            if (x[t, p] > 0) & (val >= 3):
+                print("??")
+                pass
+            else:
+                x[t, p] = 0
+
+    return x
+
+
+def denoise_5D(x):
+    '''
+    This function for 5D denoise
+        Inputs:
+            x: 5D (phrase_num, tracks, nbar, 4*opt.fs, 128)
+    '''
+    shape = x.shape
+    assert shape[0] == 1, "input phrase number =/= 1"
+
+    for track in range(shape[1]):
+        tmp = x[0, track, :, :, :].reshape((-1, shape[4]))
+        x[0, track, :, :, :] = denoise_2D(tmp).reshape((-1, shape[3], shape[4]))
+
+    return x
+
+
 # def numeric_kernel(im, kernel, scale_factor, output_shape, kernel_shift_flag):#kernel = None, kernel_shift_flag = False
 #     # See kernel_shift function to understand what this is
 #     if kernel_shift_flag:
