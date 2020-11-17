@@ -51,8 +51,13 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         
         print("************* Save real_scale **************")
         print(reals[num_scale].shape)
-        save_image('%s/real_scale.png' % (opt.outp), functions.convert_image_np(reals[num_scale]), (1, 1))
-        save_midi('%s/real_scale.mid' % (opt.outp), functions.convert_image_np(reals[num_scale]), opt)
+        real_scale = functions.convert_image_np(reals[num_scale])
+        merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
+        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
+        wandb.log({
+            "real": wandb.Image(merged)},
+            commit=False
+        )
 
 
         #初始化D,G模型       打印网络结构
@@ -205,28 +210,39 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         rec = netG(Z_opt.detach(), z_prev).detach()
         rec = dim_transformation_to_5(rec, opt).numpy()
 
-        #bool类型的矩阵   test_round test_bernoulli
-        test_round = fake > 0.5
-        test_bernoulli = fake > torch.rand(fake.shape).numpy()#???
+        #bool类型的矩阵   round bernoulli
+        round = fake > 0.5
+        #test_bernoulli = fake > torch.rand(fake.shape).numpy()
+        denoise = functions.denoise_5D(round)
 
 
+        wandb.log({
+            "errD [%d]"%len(Gs): errD,
+            "errG [%d]"%len(Gs): errG,
+            "rec_loss [%d]"%len(Gs): rec_loss
+        })
 
-        if epoch % 10 == 0 or epoch == (opt.niter-1):
+        if epoch % 100 == 0 or epoch == (opt.niter-1):
             print('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
-            wandb.log({
-                "errD [%d]"%len(Gs): errD,
-                "errG [%d]"%len(Gs): errG,
-                "rec_loss [%d]"%len(Gs): rec_loss
-            })
         # run sampler
         if epoch % 500 == 0 or epoch == (opt.niter-1):
-            run_sampler(opt, fake, epoch)
-            run_sampler(opt, test_round, epoch, postfix='round')
-            run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
+            Fake = run_sampler(opt, fake, epoch, midi = 'False')
+            Round = run_sampler(opt, round, epoch, postfix='round')
+            Denoise = run_sampler(opt, denoise, epoch, postfix='denoise')
+            #run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
         
-            save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
+            Rec = save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
             save_midi('%s/G(z_opt).mid' % (opt.outp), rec, opt)
             torch.save(z_opt, '%s/z_opt.pth' % (opt.outp))
+
+        if epoch == (opt.niter-1):
+            wandb.log({
+                "G(z) [%d]"%len(Gs): wandb.Image(Fake),
+                "G(z_opt) [%d]"%len(Gs): wandb.Image(Rec),
+                "Round [%d]" % len(Gs): wandb.Image(Round),
+                "Denoise [%d]"%len(Gs): wandb.Image(Denoise)},
+                sync=False, commit=False
+            )
 
         schedulerD.step()
         schedulerG.step()

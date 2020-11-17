@@ -105,7 +105,7 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_11.9_wandb/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s_11.9_1dim/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
@@ -238,7 +238,7 @@ def torch2uint8(x):#np数组是unit类型
 
 
 def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
-    #x = x/255
+    x = x/128
     x = torch.from_numpy(x)
     if (torch.cuda.is_available()):
         x = x.to(torch.device('cuda'))
@@ -264,7 +264,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
         None: (cubic, 4.0)  # set default interpolation method as cubic
     }.get(kernel)#kernel = None
 
-    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,s]
+    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,1]
     antialiasing *= (scale_factor[3] < 1)
 
     sorted_dims = np.argsort(np.array(scale_factor)).tolist()#[3,4,0,1,2]
@@ -272,7 +272,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
     out_im = np.copy(im)#改变out_im的值, im的值不会变
     #print(sorted_dims)
     for dim in sorted_dims:
-        if scale_factor[dim] == 1.0:#跳出, 只循环前两次dim=3,4
+        if scale_factor[dim] == 1.0:#跳出, 只循环一次dim=3
             continue
 
         #print(im.shape, output_shape, scale_factor)
@@ -288,11 +288,11 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
 def fix_size(input_shape, output_shape, scale_factor):
     if scale_factor is not None:
         if np.isscalar(scale_factor):#判断输入参数scale1是否为一个标量
-            scale_factor = [scale_factor, scale_factor]#list没有维度概念, 数组有
-        add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1]
+            scale_factor = [scale_factor]#list没有维度概念, 数组有
+        add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1, 1]
         #scale_factor = np.array(scale_factor)
         #scale_factor = scale_factor.permute((2, 3, 0, 1, 5 ))
-        scale_factor = add + scale_factor#[1, 1, 1, s, s] * input_shape
+        scale_factor = add[:-1] + scale_factor + [add[-1]]#[1, 1, 1, s, 1] * input_shape
         if output_shape is None:
             output_shape = np.uint(np.ceil(np.array(input_shape) * np.array(scale_factor)))
     return scale_factor, output_shape
@@ -367,6 +367,123 @@ def cubic(x):
     absx3 = absx ** 3
     return ((1.5*absx3 - 2.5*absx2 + 1) * (absx <= 1) +
             (-0.5*absx3 + 2.5*absx2 - 4*absx + 2) * ((1 < absx) & (absx <= 2)))
+
+def resize_0(image_5d, scale_factor, is_net=False):
+    """
+    This function will cut pitch near the mean of picth
+    
+    Inputs:
+        image_5d: 5d (1, 6, 4, 96, 128)
+        scale_factor: <1
+    Outputs:
+        images after scale_factor
+    """
+    assert image_5d.shape[0] == 1, "input phrase amount =/= 1"
+    if scale_factor == 1.0:
+        return image_5d
+    if scale_factor < 1.0:
+        shape = image_5d.shape
+        reserve_pitch = math.ceil(shape[4] * scale_factor)
+        dedim_image = image_5d.reshape(shape[0], shape[1], -1, shape[4])
+        scale_pitch_image = np.zeros((shape[0], shape[1], shape[2], shape[3], math.ceil(shape[4] * scale_factor)))
+        
+        result = np.zeros((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+
+        # resize on pitch 
+        for i in range(shape[1]):
+            pitch_mean = dedim_image[:, i, :, :].nonzero()[2]
+            if len(pitch_mean) == 0:
+                pitch_mean = 64
+            else:
+                pitch_mean = math.ceil(pitch_mean.mean())
+            
+            if math.ceil(0.5 * reserve_pitch)  > pitch_mean:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, 0: reserve_pitch]
+            elif math.ceil(0.5 * reserve_pitch) > 128 - pitch_mean:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, 128 - reserve_pitch: ]
+            else:
+                scale_pitch_image[:, i, :, :, :] = image_5d[:, i, :, :, int(pitch_mean-int(0.5*reserve_pitch)):int(pitch_mean-int(0.5*reserve_pitch)) + reserve_pitch]
+            
+
+        # resize on step
+        for track in range(result.shape[1]):
+            for bar in range(4):
+                for y in range(result.shape[4]):
+                    for x in range(result.shape[3]):
+                        x_ = np.clip(math.ceil(x/scale_factor), 0, scale_pitch_image.shape[3] - 1)
+                        result[:, track, bar, x, y] = scale_pitch_image[:, track, bar, x_, y]
+        return result
+    else:
+        # scale > 1.0
+        shape = image_5d.shape
+        reserve_pitch = math.ceil(shape[4] * scale_factor)
+        dedim_image = image_5d.reshape(shape[0], shape[1], -1, shape[4])
+        scale_pitch_image = np.zeros((shape[0], shape[1], shape[2], shape[3], math.ceil(shape[4] * scale_factor)))
+        scale_pitch_image[:, :, :, :, math.ceil(scale_pitch_image.shape[4] * 0.5) - math.ceil(shape[4]*0.5):math.ceil(scale_pitch_image.shape[4] * 0.5) - math.ceil(shape[4]*0.5) + shape[4]] = image_5d
+        if is_net:
+            result = np.randn((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+        else:
+            result = np.zeros((shape[0], shape[1], shape[2], math.ceil(shape[3] * scale_factor), math.ceil(shape[4] * scale_factor)))
+        # resize on step
+        for track in range(result.shape[1]):
+            for bar in range(4):
+                for y in range(result.shape[4]):
+                    for x in range(result.shape[3]):
+                        x_ = np.clip(math.ceil(x/scale_factor), 0, scale_pitch_image.shape[3] - 1)
+                        result[:, track, bar, x, y] = scale_pitch_image[:, track, bar, x_, y]
+        return result
+
+
+def denoise_2D(x):
+    '''
+    This function delete isolate point
+        Inputs:
+            x: 2D (time, pitch)
+    '''
+    shape = x.shape
+    for t in range(shape[0]):
+        for p in range(shape[1]):
+            # max_len = shape[0] - 1
+            # left_1 = t-1 if t-1 >0 else 0
+            # right_1 = t + 1 if (t + 1) < shape[0] else max_len
+
+            # left_2 = t-2 if t-2 >0 else 0
+            # right_2 = t + 2 if (t + 2) < shape[0] else max_len
+
+            # left_3 = t-3 if t-3 >0 else 0
+            # right_3 = t + 3 if (t + 3) < shape[0] else max_len
+
+            # if (x[t, p] > 0) & (
+            #         ((x[right_1, p] > 0) | (x[left_1, p] > 0)) |
+            #         ((x[right_2, p] > 0) | (x[left_2, p] > 0)) 
+            #         ):
+            #     pass
+            # else:
+            #     x[t, p] = 0
+
+            val = (x[t-2: t+3, p] > 0).sum()
+            if (x[t, p] > 0) & (val >= 3):
+                pass
+            else:
+                x[t, p] = 0
+
+    return x
+
+
+def denoise_5D(x):
+    '''
+    This function for 5D denoise
+        Inputs:
+            x: 5D (phrase_num, tracks, nbar, 4*opt.fs, 128)
+    '''
+    shape = x.shape
+    assert shape[0] == 1, "input phrase number =/= 1"
+
+    for track in range(shape[1]):
+        tmp = x[0, track, :, :, :].reshape((-1, shape[4]))
+        x[0, track, :, :, :] = denoise_2D(tmp).reshape((-1, shape[3], shape[4]))
+
+    return x
 
 
 # def numeric_kernel(im, kernel, scale_factor, output_shape, kernel_shift_flag):#kernel = None, kernel_shift_flag = False
