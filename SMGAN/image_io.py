@@ -93,3 +93,4 @@ def save_image(filepath, phrases, shape, inverted=True, grid_width=3,
     merged = get_image_grid(np.stack(merged_phrases), shape, grid_width,
                             grid_color, frame)
     imageio.imwrite(filepath, merged)
+    return merged

@@ -27,7 +27,7 @@ def array2png(roll, filepath):
     plt.savefig(filepath)
 
 
-def midi2np(opt):
+def midi2np(opt, filepath=None, sel = 0):
     """
         inputs:
             filepath:   midi file path
@@ -37,7 +37,10 @@ def midi2np(opt):
             numpy array with (tracks, 128, time)
     """
     # Load MIDI file into PrettyMIDI object
-    pm = pretty_midi.PrettyMIDI('training_data/%s/%s' % (opt.input_dir, opt.input_phrase))#type(pm)=pretty_mid.PrettyMIDI
+    if sel != 0:
+        pm = pretty_midi.PrettyMIDI(filepath)#type(pm)=pretty_mid.PrettyMIDI
+    else:
+        pm = pretty_midi.PrettyMIDI('training_data/%s/%s' % (opt.input_dir, opt.input_phrase))#type(pm)=pretty_mid.PrettyMIDI
     trakcs_len = len(pm.instruments)
     pad_time = math.ceil(pm.get_end_time() / 8) * 8
     print("paded time is [{}]".format(pad_time))
@@ -70,13 +73,14 @@ def midi2np(opt):
     return np.array(tracks)
 
 
-def midiArrayReshape(array, opt):
+def midiArrayReshape(array, opt, start=2):
     """
         inputs:
             array:      numpy array (tracks, 128, time)
 
         returns:
-            numpy array with (tracks, 128, 4, 4*opt.fs, -1)
+            numpy array with (tracks, 128,    4,    4*opt.fs, -1)
+                             (-1,     tracks, nbar, 4*opt.fs, 128)
 
     """
     assert len(array.shape) == 3, "input dim isn't equal to 3 (tracks, pitch, time)"
@@ -84,7 +88,7 @@ def midiArrayReshape(array, opt):
     #一小节2s  fs每秒采样次数
     data = array.reshape((shape[0], shape[1], -1, opt.nbar, int(opt.nbar*opt.fs*0.5)))#(6, 128, 31, 4, 96)
     data = data.transpose(2, 0, 3, 4, 1)
-    data = data[2:3, :, :, :, :]
+    data = data[start:start+1, :, :, :, :]
     #####最大尺度输入的是bool类型矩阵(0101)
     data = (data>0)
     return data

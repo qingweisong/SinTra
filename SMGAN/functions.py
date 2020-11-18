@@ -16,6 +16,10 @@ from sklearn.cluster import KMeans
 import imageio
 import pypianoroll
 
+import time 
+
+curr_time = time.time()
+
 def load_phrase_from_npy(opt):#np.load()进来就是数组
     data = np.load('training_data/%s/%s' % (opt.input_dir, opt.input_phrase))
     #-1代表几个phrase
@@ -111,7 +115,7 @@ def generate_dir2save(opt):
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
     elif opt.mode == 'random_samples_arbitrary_sizes':
         dir2save = 'Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.input_phrase[:-4], opt.scale_v, opt.scale_h)
-    return dir2save
+    return dir2save + "_"+ str(curr_time)
 
 
 def load_trained_pyramid(opt, mode_='train'):
@@ -264,7 +268,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
         None: (cubic, 4.0)  # set default interpolation method as cubic
     }.get(kernel)#kernel = None
 
-    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,s]
+    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,1]
     antialiasing *= (scale_factor[3] < 1)
 
     sorted_dims = np.argsort(np.array(scale_factor)).tolist()#[3,4,0,1,2]
@@ -272,7 +276,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
     out_im = np.copy(im)#改变out_im的值, im的值不会变
     #print(sorted_dims)
     for dim in sorted_dims:
-        if scale_factor[dim] == 1.0:#跳出, 只循环前两次dim=3,4
+        if scale_factor[dim] == 1.0:#跳出, dim=3
             continue
 
         #print(im.shape, output_shape, scale_factor)
@@ -288,11 +292,11 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
 def fix_size(input_shape, output_shape, scale_factor):
     if scale_factor is not None:
         if np.isscalar(scale_factor):#判断输入参数scale1是否为一个标量
-            scale_factor = [scale_factor, scale_factor]#list没有维度概念, 数组有
-        add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1]
+            scale_factor = [scale_factor]#list没有维度概念, 数组有
+        add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1, 1]
         #scale_factor = np.array(scale_factor)
         #scale_factor = scale_factor.permute((2, 3, 0, 1, 5 ))
-        scale_factor = add + scale_factor#[1, 1, 1, s, s] * input_shape
+        scale_factor = add[0: -1] + scale_factor + [add[-1]] #[1, 1, 1, s, s] * input_shape
         if output_shape is None:
             output_shape = np.uint(np.ceil(np.array(input_shape) * np.array(scale_factor)))
     return scale_factor, output_shape
@@ -396,18 +400,21 @@ def denoise_2D(x):
             #     pass
             # else:
             #     x[t, p] = 0
-
-            val = (x[t-2: t+3, p] > 0).sum()
-            if (x[t, p] > 0) & (val >= 3):
-                print("??")
+            w = 8
+            val = (x[t-w: t+w+1, p] > 0).sum()
+            val_left = (x[t-w: t+1, p] > 0).sum()
+            val_right = (x[t: t+1+w, p] > 0).sum()
+            if (x[t, p] > 0) & (val >= w):
                 pass
+            elif (x[t, p] == 0) & (val_left > 0) & (val_right > 0):
+                x[t, p] = 60
             else:
                 x[t, p] = 0
 
     return x
 
 
-def denoise_5D(x):
+def denoise_5D(x, isdrums):
     '''
     This function for 5D denoise
         Inputs:
@@ -417,6 +424,8 @@ def denoise_5D(x):
     assert shape[0] == 1, "input phrase number =/= 1"
 
     for track in range(shape[1]):
+        if isdrums[track] == True:
+            continue
         tmp = x[0, track, :, :, :].reshape((-1, shape[4]))
         x[0, track, :, :, :] = denoise_2D(tmp).reshape((-1, shape[3], shape[4]))
 

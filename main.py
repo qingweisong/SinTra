@@ -4,6 +4,7 @@ from SMGAN.training import *
 import SMGAN.functions as functions
 import numpy as np
 from SMGAN.image_io import *
+import time
 
 
 if __name__ == '__main__':
@@ -36,8 +37,8 @@ if __name__ == '__main__':
     if opt.input_dir == 'array':
         real_ = functions.load_phrase_from_npy(opt)
     if opt.input_dir == 'midi':
-        real_ = midi2np(opt)
-        real_ = midiArrayReshape(real_, opt)
+        real_ = midi2np(opt=opt, filepath='./test/4500_round.mid', sel=1)
+        real_ = midiArrayReshape(real_, opt, start=0)
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)
 
@@ -50,6 +51,18 @@ if __name__ == '__main__':
     print("The tempo of music = %d" % opt.tempo)
     print("The max of velocity = %d" % max(opt.vel_max))
     print("The min of velocity = %d" % min(opt.vel_min))
+
+
+    print(real_.shape)
+    save_image("test_4500.png", real_, (1, -1))
+
+    real_ = functions.denoise_5D(real_, isdrums = [False]* 4)
+    save_image("denoise_4500.png", real_, (1, -1))
+    # for i in range(real_.shape[1]):
+    #     one_track = real_.reshape((real_.shape[0], real_.shape[1], -1, real_.shape[4]))[0, i, :, :].transpose()
+    #     cv2.imwrite("track_%d_.png"%i, (255 - (one_track * 255.).clip(0, 255)).astype(np.uint8))
+    
+    exit(0)
 
 
 
