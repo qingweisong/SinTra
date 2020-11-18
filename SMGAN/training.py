@@ -30,6 +30,7 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
+    #real = functions.resize_0(real_, opt.scale1)#max 5维(np类型)
     reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
 
     # # binary
@@ -55,7 +56,7 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
         save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
         wandb.log({
-            "real": wandb.Image(merged)},
+            "real [%d]"% num_scale: wandb.Image(merged)},
             commit=False
         )
 
@@ -212,7 +213,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         #bool类型的矩阵   round bernoulli
         round = fake > 0.5
-        #test_bernoulli = fake > torch.rand(fake.shape).numpy()
+        bernoulli = fake > torch.rand(fake.shape).numpy()
         denoise = functions.denoise_5D(round)
 
 
@@ -229,7 +230,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             Fake = run_sampler(opt, fake, epoch, midi = 'False')
             Round = run_sampler(opt, round, epoch, postfix='round')
             Denoise = run_sampler(opt, denoise, epoch, postfix='denoise')
-            #run_sampler(opt, test_bernoulli, epoch, postfix='bernoulli')
+            Bernoulli = run_sampler(opt, bernoulli, epoch, postfix='bernoulli')
         
             Rec = save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
             save_midi('%s/G(z_opt).mid' % (opt.outp), rec, opt)
@@ -239,6 +240,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             wandb.log({
                 "G(z) [%d]"%len(Gs): wandb.Image(Fake),
                 "G(z_opt) [%d]"%len(Gs): wandb.Image(Rec),
+                "Bernoulli [%d]"%len(Gs): wandb.Image(Bernoulli),
                 "Round [%d]" % len(Gs): wandb.Image(Round),
                 "Denoise [%d]"%len(Gs): wandb.Image(Denoise)},
                 sync=False, commit=False
@@ -270,6 +272,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 z_in = noise_amp*z+G_z
                 G_z = G(z_in.detach(),G_z)
                 G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)#上采样到下一尺度大小
+                #G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt, is_net = True)#上采样到下一尺度大小
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
 
                 count += 1
@@ -282,6 +285,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 G_z = G(z_in.detach(),G_z)
 
                 G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)
+                #G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt, is_net = True)
                 G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
                 #if count != (len(Gs)-1):
                 #    G_z = m_image(G_z)

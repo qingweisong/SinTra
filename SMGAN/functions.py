@@ -105,7 +105,7 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_11.9_1dim/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s_11.18_denoise/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
@@ -238,7 +238,7 @@ def torch2uint8(x):#np数组是unit类型
 
 
 def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
-    x = x/128
+    #x = x/128
     x = torch.from_numpy(x)
     if (torch.cuda.is_available()):
         x = x.to(torch.device('cuda'))
@@ -249,8 +249,8 @@ def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
 
 #np->torch   维度不变
 def imresize(im, scale, opt):
-    #im = torch2uint8(im)
     im = imresize_in(im, scale_factor=scale)
+    #im = resize_0(im, scale_factor = scale, is_net=False)
     im = np2torch(im)
     #im = im[:, :, 0:int(scale * s[2]), 0:int(scale * s[3])]
     return im
@@ -441,8 +441,8 @@ def denoise_2D(x):
             x: 2D (time, pitch)
     '''
     shape = x.shape
-    for t in range(shape[0]):
-        for p in range(shape[1]):
+    for t in range(shape[0]):#time
+        for p in range(shape[1]):#pitch
             # max_len = shape[0] - 1
             # left_1 = t-1 if t-1 >0 else 0
             # right_1 = t + 1 if (t + 1) < shape[0] else max_len
@@ -461,9 +461,14 @@ def denoise_2D(x):
             # else:
             #     x[t, p] = 0
 
-            val = (x[t-2: t+3, p] > 0).sum()
-            if (x[t, p] > 0) & (val >= 3):
+            w = 8
+            val = (x[t-w: t+w+1, p] > 0).sum()
+            val_left = (x[t-w: t+1, p] > 0).sum()
+            val_right = (x[t: t+1+w, p] > 0).sum()
+            if (x[t, p] > 0) & (val >= w):
                 pass
+            elif (x[t, p] == 0) & (val_left > 0) & (val_right > 0):
+                x[t, p] = 60
             else:
                 x[t, p] = 0
 
@@ -474,7 +479,7 @@ def denoise_5D(x):
     '''
     This function for 5D denoise
         Inputs:
-            x: 5D (phrase_num, tracks, nbar, 4*opt.fs, 128)
+            x: 5D (phrase_num, tracks, nbar, 4*opt.fs *0.5, 128)
     '''
     shape = x.shape
     assert shape[0] == 1, "input phrase number =/= 1"

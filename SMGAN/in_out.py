@@ -86,7 +86,7 @@ def midiArrayReshape(array, opt):
     data = data.transpose(2, 0, 3, 4, 1)
     data = data[2:3, :, :, :, :]
     #####最大尺度输入的是bool类型矩阵(0101)
-    #data = (data>0)
+    data = (data>0)
     return data
 
 
