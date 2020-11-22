@@ -296,3 +296,6 @@ def print_mat_file(mat_path, config):
     with np.load(mat_path) as loaded:
         metrics.print_metrics_mat(loaded['score_matrix_mean'])
         metrics.print_metrics_pair(loaded['score_pair_matrix_mean'])
+
+if __name__ == '__main__':
+    ()

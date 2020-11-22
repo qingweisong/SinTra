@@ -48,6 +48,7 @@ if __name__ == '__main__':
     print("The num of instruments = %d" % opt.ntrack)
     print("The num of pitch = %d" % opt.npitch)
     print("The tempo of music = %d" % opt.tempo)
+    print("The program_num = {}".format(opt.program_num))
     print("The max of velocity = %d" % max(opt.vel_max))
     print("The min of velocity = %d" % min(opt.vel_min))
 

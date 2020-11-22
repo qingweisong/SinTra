@@ -75,11 +75,11 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
                 test_round = fake > 0.5
-                denoise = functions.denoise_5D(test_round_5)
+                #denoise = functions.denoise_5D(test_round)
                 save_image('%s/%d.png' % (dir2save, i), test_round, (1,1))
                 save_midi('%s/%d.mid' % (dir2save, i), test_round, opt)
-                save_image('%s/%d_d.png' % (dir2save, i), denoise, (1,1))
-                save_midi('%s/%d_d.mid' % (dir2save, i), denoise, opt)
+                # save_image('%s/%d_d.png' % (dir2save, i), denoise, (1,1))
+                # save_midi('%s/%d_d.mid' % (dir2save, i), denoise, opt)
             images_cur.append(I_curr)
         n+=1
     return I_curr.detach()

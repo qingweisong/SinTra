@@ -241,7 +241,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
                 "G(z) [%d]"%len(Gs): wandb.Image(Fake),
                 "G(z_opt) [%d]"%len(Gs): wandb.Image(Rec),
                 "Bernoulli [%d]"%len(Gs): wandb.Image(Bernoulli),
-                "Round [%d]" % len(Gs): wandb.Image(Round),
+                "Round [%d]" % len(Gs): wandb.Image(Round)},
                 #"Denoise [%d]"%len(Gs): wandb.Image(Denoise)},
                 sync=False, commit=False
             )
