@@ -105,7 +105,7 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_11.18_denoise/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s_11.18_resize/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
@@ -151,7 +151,7 @@ def post_config(opt):
 
 def generate_in2coarsest(reals,scale_v,scale_h,opt):
     real = reals[opt.gen_start_scale]#5
-    real_down = upsampling(real, scale_v * real.shape[3], scale_h * real.shape[4])
+    real_down = upsampling(dim_transformation_to_4(real), scale_v * 4 *real.shape[3], scale_h * real.shape[4])#4
     if opt.gen_start_scale == 0:
         in_s = torch.full(real_down.shape, 0, device=opt.device)
     else: #if n!=0
@@ -216,6 +216,8 @@ def dim_transformation_to_4(x):
 
 def dim_transformation_to_5(x, opt):
     shape = x.shape
+    print(shape)
+    x = x[:, :, 0: opt.nbar * (shape[2] // opt.nbar), :]
     x = x.cpu().reshape(shape[0], shape[1], opt.nbar, shape[2]//opt.nbar, shape[3])
     return x
 
@@ -264,7 +266,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
         None: (cubic, 4.0)  # set default interpolation method as cubic
     }.get(kernel)#kernel = None
 
-    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,1]
+    #when downscaling(antialiasing=True)一般是False     scale_factor = [1,1,1,s,s]
     antialiasing *= (scale_factor[3] < 1)
 
     sorted_dims = np.argsort(np.array(scale_factor)).tolist()#[3,4,0,1,2]
@@ -272,7 +274,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
     out_im = np.copy(im)#改变out_im的值, im的值不会变
     #print(sorted_dims)
     for dim in sorted_dims:
-        if scale_factor[dim] == 1.0:#跳出, 只循环一次dim=3
+        if scale_factor[dim] == 1.0:#跳出, 只循环前两次次dim=3, 4
             continue
 
         #print(im.shape, output_shape, scale_factor)
@@ -288,11 +290,11 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
 def fix_size(input_shape, output_shape, scale_factor):
     if scale_factor is not None:
         if np.isscalar(scale_factor):#判断输入参数scale1是否为一个标量
-            scale_factor = [scale_factor]#list没有维度概念, 数组有
+            scale_factor = [scale_factor, scale_factor]#list没有维度概念, 数组有
         add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1, 1]
         #scale_factor = np.array(scale_factor)
         #scale_factor = scale_factor.permute((2, 3, 0, 1, 5 ))
-        scale_factor = add[:-1] + scale_factor + [add[-1]]#[1, 1, 1, s, 1] * input_shape
+        scale_factor = add + scale_factor#[1, 1, 1, s, s] * input_shape
         if output_shape is None:
             output_shape = np.uint(np.ceil(np.array(input_shape) * np.array(scale_factor)))
     return scale_factor, output_shape

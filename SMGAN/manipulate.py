@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from SMGAN.training import *
 from config import get_arguments
 
-def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=50):
+def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=5):
     #if torch.is_tensor(in_s) == False:
     if in_s is None:
         in_s = torch.full(reals[0].shape, 0, device=opt.device)
@@ -74,18 +74,12 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 except OSError:
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
-                test_round_5 = fake > 0.5
-                test_round_6 = fake > 0.6
-                test_round_7 = fake > 0.7
-                test_round_8 = fake > 0.8
-                save_image('%s/%d_5.png' % (dir2save, i), test_round_5, (1,1))
-                save_midi('%s/%d_5.mid' % (dir2save, i), test_round_5, opt)
-                save_image('%s/%d_6.png' % (dir2save, i), test_round_6, (1,1))
-                save_midi('%s/%d_6.mid' % (dir2save, i), test_round_6, opt)
-                save_image('%s/%d_7.png' % (dir2save, i), test_round_7, (1,1))
-                save_midi('%s/%d_7.mid' % (dir2save, i), test_round_7, opt)
-                save_image('%s/%d_8.png' % (dir2save, i), test_round_8, (1,1))
-                save_midi('%s/%d_8.mid' % (dir2save, i), test_round_8, opt)
+                test_round = fake > 0.5
+                denoise = functions.denoise_5D(test_round_5)
+                save_image('%s/%d.png' % (dir2save, i), test_round, (1,1))
+                save_midi('%s/%d.mid' % (dir2save, i), test_round, opt)
+                save_image('%s/%d_d.png' % (dir2save, i), denoise, (1,1))
+                save_midi('%s/%d_d.mid' % (dir2save, i), denoise, opt)
             images_cur.append(I_curr)
         n+=1
     return I_curr.detach()

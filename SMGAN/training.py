@@ -214,7 +214,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         #bool类型的矩阵   round bernoulli
         round = fake > 0.5
         bernoulli = fake > torch.rand(fake.shape).numpy()
-        denoise = functions.denoise_5D(round)
+        #denoise = functions.denoise_5D(round)
 
 
         wandb.log({
@@ -229,7 +229,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         if epoch % 500 == 0 or epoch == (opt.niter-1):
             Fake = run_sampler(opt, fake, epoch, midi = 'False')
             Round = run_sampler(opt, round, epoch, postfix='round')
-            Denoise = run_sampler(opt, denoise, epoch, postfix='denoise')
+            #Denoise = run_sampler(opt, denoise, epoch, postfix='denoise')
             Bernoulli = run_sampler(opt, bernoulli, epoch, postfix='bernoulli')
         
             Rec = save_image('%s/G(z_opt).png' % (opt.outp), rec, (1, 1))
@@ -242,7 +242,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
                 "G(z_opt) [%d]"%len(Gs): wandb.Image(Rec),
                 "Bernoulli [%d]"%len(Gs): wandb.Image(Bernoulli),
                 "Round [%d]" % len(Gs): wandb.Image(Round),
-                "Denoise [%d]"%len(Gs): wandb.Image(Denoise)},
+                #"Denoise [%d]"%len(Gs): wandb.Image(Denoise)},
                 sync=False, commit=False
             )
 
