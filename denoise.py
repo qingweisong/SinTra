@@ -64,7 +64,7 @@ def denoise_midi(filepath, fs = 48, nbar=4):
     # ==================================
     # save_image
     # ==================================
-
+    save_image(".".join(filepath.split(".")[0: -1]) + "_origin" + ".png", data, (1, -1))
     save_image(".".join(filepath.split(".")[0: -1]) + "_denoise" + ".png", denoise_data, (1, -1))
 
 
