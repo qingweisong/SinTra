@@ -49,6 +49,8 @@ def denoise_midi(filepath, fs = 48, nbar=4):
     data = array.reshape((shape[0], shape[1], -1, nbar, int(nbar*fs*0.5)))#(6, 128, 31, 4, 96)
     data = data.transpose(2, 0, 3, 4, 1)
     data = data[0:1, :, :, :, :]
+    
+    save_image(".".join(filepath.split(".")[0: -1]) + "_origin" + ".png", data, (1, -1))
     #####最大尺度输入的是bool类型矩阵(0101)
 
     # bool !!!!
@@ -64,7 +66,6 @@ def denoise_midi(filepath, fs = 48, nbar=4):
     # ==================================
     # save_image
     # ==================================
-    save_image(".".join(filepath.split(".")[0: -1]) + "_origin" + ".png", data, (1, -1))
     save_image(".".join(filepath.split(".")[0: -1]) + "_denoise" + ".png", denoise_data, (1, -1))
 
 
