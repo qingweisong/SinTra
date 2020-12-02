@@ -3,3 +3,4 @@ TrainedModels/
 training_data/
 Output/
 wandb/
+denoise/

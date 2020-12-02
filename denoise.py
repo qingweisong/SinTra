@@ -49,10 +49,7 @@ def denoise_midi(filepath, fs = 48, nbar=4):
     data = array.reshape((shape[0], shape[1], -1, nbar, int(nbar*fs*0.5)))#(6, 128, 31, 4, 96)
     data = data.transpose(2, 0, 3, 4, 1)
     data = data[0:1, :, :, :, :]
-    #####最大尺度输入的是bool类型矩阵(0101)
-
-    # bool !!!!
-    # data = (data>0)
+    save_image(".".join(filepath.split(".")[0: -1]) + "_origin" + ".png", data, (1, -1))
 
     # ==================================
     #  denoise
@@ -64,7 +61,7 @@ def denoise_midi(filepath, fs = 48, nbar=4):
     # ==================================
     # save_image
     # ==================================
-
+    
     save_image(".".join(filepath.split(".")[0: -1]) + "_denoise" + ".png", denoise_data, (1, -1))
 
 
@@ -90,6 +87,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='denoise a midi')
     parser.add_argument('--filepath', type=str, help='file path of midi file', required=True)
     args = parser.parse_args(sys.argv[1:])
+    # filepath = "./4999_round.mid"
     denoise_midi(args.filepath)
     print("Denoise Over!")
     pass

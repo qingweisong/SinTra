@@ -51,6 +51,7 @@ def midi2np(opt):
         if pm.instruments[i].is_drum:
             print("Track [{}] is drum".format(i))
             is_drum.append(True)
+            pm.instruments[i].is_drum = False
         else:
             is_drum.append(False)
         track = pm.instruments[i]
