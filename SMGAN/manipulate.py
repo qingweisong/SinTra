@@ -19,8 +19,53 @@ import imageio
 import matplotlib.pyplot as plt
 from SMGAN.training import *
 from config import get_arguments
+from SMGAN.metrics import Metrics
+
+def generate_config(opt):
+    config = {}
+
+    config['scale_mask'] = list(map(bool, [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]))
+    config['tonal_matrix_coefficient'] = (1., 1., .5)
+    config['tonal_distance_pairs'] = [(i, j) for i in range(7) for j in range(7)]
+    config['drum_filter']= np.tile([1., .1, 0., 0., 0., .1], 16)
+    config['beat_resolution'] = 24    # ???
+
+    config['track_names'] = opt.program_num
+    config['metric_map'] = np.array([
+        # indices of tracks for the metrics to compute
+        [True] * opt.ntrack,  # empty bar rate
+        [True] * opt.ntrack, # number of pitch used
+        list(np.array(opt.is_drum) == False), # qualified note rate
+        list(np.array(opt.is_drum) == False), # polyphonicity
+        list(np.array(opt.is_drum) == False), # in scale rate
+        opt.is_drum,          # in drum pattern rate
+        list(np.array(opt.is_drum) == False)  # number of chroma used
+    ], dtype=bool)
+
+    return config
+
+class Evaluation:
+    def __init__(self, config):
+        self.metric = Metrics(config)
+
+    def run_eval(self, target, postfix=None):
+        target = target.transpose(0, 2, 3, 4, 1)
+        binarized = target > 0
+        if postfix is None:
+            filename = "www"
+        else:
+            filename = "www" + '_' + postfi
+        reshaped = binarized.reshape((-1,) + binarized.shape[2:])
+        print("eval ======")
+        print(reshaped.shape)
+        mat_path = os.path.join('.', filename+'.npy')
+        return self.metric.eval(reshaped, mat_path=mat_path)
+
 
 def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=5):
+    config = generate_config(opt)
+    metric = Evaluation(config)
+
     #if torch.is_tensor(in_s) == False:
     if in_s is None:
         in_s = torch.full(reals[0].shape, 0, device=opt.device)
@@ -80,6 +125,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 save_midi('%s/%d.mid' % (dir2save, i), test_round, opt)
                 # save_image('%s/%d_d.png' % (dir2save, i), denoise, (1,1))
                 # save_midi('%s/%d_d.mid' % (dir2save, i), denoise, opt)
+                metric.run_eval(test_round)
             images_cur.append(I_curr)
         n+=1
     return I_curr.detach()

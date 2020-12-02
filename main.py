@@ -51,6 +51,19 @@ if __name__ == '__main__':
     print("The program_num = {}".format(opt.program_num))
     print("The max of velocity = %d" % max(opt.vel_max))
     print("The min of velocity = %d" % min(opt.vel_min))
+    print(real_.shape)
+
+
+    config = generate_config(opt)
+    metric = Evaluation(config)
+    a, b = metric.run_eval(real_)
+
+    print("======== in track")
+    metric.metric.print_metrics_mat(a)
+    
+    print("======== track vs. track")
+    metric.metric.print_metrics_pair(b)
+    exit(0)
 
 
 
