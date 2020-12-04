@@ -58,13 +58,11 @@ if __name__ == '__main__':
     metric = Evaluation(config)
     a, b = metric.run_eval(real_)
 
-    print("======== in track")
+    print("*********************** in track ***********************")
     metric.metric.print_metrics_mat(a)
     
-    print("======== track vs. track")
+    print("******************** track vs. track ********************")
     metric.metric.print_metrics_pair(b)
-    exit(0)
-
 
 
     #print(real_.shape)

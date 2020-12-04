@@ -47,6 +47,8 @@ def generate_config(opt):
 class Evaluation:
     def __init__(self, config):
         self.metric = Metrics(config)
+        self.score_matrix_mean = []
+        self.score_pair_matrix_mean = []
 
     def run_eval(self, target, postfix=None):
         target = target.transpose(0, 2, 3, 4, 1)
@@ -54,13 +56,38 @@ class Evaluation:
         if postfix is None:
             filename = "www"
         else:
-            filename = "www" + '_' + postfi
+            filename = "www" + '_' + postfix
         reshaped = binarized.reshape((-1,) + binarized.shape[2:])
-        print("eval ======")
-        print(reshaped.shape)
         mat_path = os.path.join('.', filename+'.npy')
-        return self.metric.eval(reshaped, mat_path=mat_path)
+        a, b = self.metric.eval(reshaped, mat_path=None)
+        self.score_matrix_mean.append(a)
+        self.score_pair_matrix_mean.append(b)
+        return a, b
+    
+    def write_npy(self, path):
+        # calculate average
+        average_score_matrix_mean = 0
+        for i in self.score_matrix_mean:
+            average_score_matrix_mean += i
+        average_score_matrix_mean /= (len(self.score_matrix_mean)*1.0)
 
+        average_score_pair_matrix_mean = 0
+        for i in self.score_pair_matrix_mean:
+            average_score_pair_matrix_mean += i
+        average_score_pair_matrix_mean /= (len(self.score_matrix_mean)*1.0)
+
+
+        if not path.endswith(".npy"):
+            path = path + '.npy'
+        info_dict = {
+            'score_matrix_mean': self.score_matrix_mean,
+            'score_pair_matrix_mean': self.score_pair_matrix_mean,
+            'average_score_matrix_mean': average_score_matrix_mean,
+            'average_score_pair_matrix_mean': average_score_pair_matrix_mean
+            }
+        print('[*] Saving score matrices...')
+        np.save(path, info_dict)
+        print("Successfully saved to", path)
 
 def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=5):
     config = generate_config(opt)
@@ -120,12 +147,27 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
                 test_round = fake > 0.5
-                #denoise = functions.denoise_5D(test_round)
+                denoise = functions.denoise_5D(test_round)
                 save_image('%s/%d.png' % (dir2save, i), test_round, (1,1))
                 save_midi('%s/%d.mid' % (dir2save, i), test_round, opt)
-                # save_image('%s/%d_d.png' % (dir2save, i), denoise, (1,1))
-                # save_midi('%s/%d_d.mid' % (dir2save, i), denoise, opt)
-                metric.run_eval(test_round)
+
+                save_image('%s/%d_denoise.png' % (dir2save, i), denoise, (1,1))
+                save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise, opt)
+
+
+                #config = generate_config(opt)
+                #metric = Evaluation(config)
+                a, b = metric.run_eval(test_round, str(i))
+
+                print("******************** in track ********************")
+                metric.metric.print_metrics_mat(a)
+                
+                print("******************** track vs. track ********************")
+                metric.metric.print_metrics_pair(b)
+
+
+                #metric.run_eval(test_round)
             images_cur.append(I_curr)
         n+=1
+    metric.write_npy("total.npy")
     return I_curr.detach()

@@ -105,7 +105,7 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_11.18_resize/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s_12.2_metrics/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
@@ -216,7 +216,6 @@ def dim_transformation_to_4(x):
 
 def dim_transformation_to_5(x, opt):
     shape = x.shape
-    print(shape)
     x = x[:, :, 0: opt.nbar * (shape[2] // opt.nbar), :]
     x = x.cpu().reshape(shape[0], shape[1], opt.nbar, shape[2]//opt.nbar, shape[3])
     return x
