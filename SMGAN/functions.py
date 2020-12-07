@@ -462,7 +462,7 @@ def denoise_2D(x):
             # else:
             #     x[t, p] = 0
 
-            w = 8
+            w = 1
             val = (x[t-w: t+w+1, p] > 0).sum()
             val_left = (x[t-w: t+1, p] > 0).sum()
             val_right = (x[t: t+1+w, p] > 0).sum()
@@ -476,7 +476,7 @@ def denoise_2D(x):
     return x
 
 
-def denoise_5D(x):
+def denoise_5D(x, opt=None):
     '''
     This function for 5D denoise
         Inputs:
@@ -485,7 +485,14 @@ def denoise_5D(x):
     shape = x.shape
     assert shape[0] == 1, "input phrase number =/= 1"
 
+    if opt != None:
+        drum = opt.is_drum
+    else:
+        drum = [False] * shape[1]
+
     for track in range(shape[1]):
+        if drum[track] == True:
+            continue
         tmp = x[0, track, :, :, :].reshape((-1, shape[4]))
         x[0, track, :, :, :] = denoise_2D(tmp).reshape((-1, shape[3], shape[4]))
 

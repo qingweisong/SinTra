@@ -5,9 +5,6 @@ import pypianoroll as ppr
 from .functions import *
 import matplotlib.pyplot as plt
 
-def pianoResize(roll):
-    pitch = roll.shape[1]
-    pass
 
 def array2png(roll, filepath):
     roll = roll.transpose(0, 1, 4, 2, 3)

@@ -91,8 +91,10 @@ def tonal_dist(chroma1, chroma2, tonal_matrix=None):
                       RuntimeWarning)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        chroma1 = chroma1 / np.sum(chroma1)
-        chroma2 = chroma2 / np.sum(chroma2)
+        if np.sum(chroma1) != 0:
+            chroma1 = chroma1 / np.sum(chroma1)
+        if np.sum(chroma2) != 0:
+            chroma2 = chroma2 / np.sum(chroma2)
     result1 = np.matmul(tonal_matrix, chroma1)
     result2 = np.matmul(tonal_matrix, chroma2)
     return np.linalg.norm(result1 - result2)

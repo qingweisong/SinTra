@@ -20,13 +20,14 @@ import matplotlib.pyplot as plt
 from SMGAN.training import *
 from config import get_arguments
 from SMGAN.metrics import Metrics
+import sys
 
 def generate_config(opt):
     config = {}
 
     config['scale_mask'] = list(map(bool, [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]))
     config['tonal_matrix_coefficient'] = (1., 1., .5)
-    config['tonal_distance_pairs'] = [(i, j) for i in range(7) for j in range(7)]
+    config['tonal_distance_pairs'] = [(i, j) for i in range(opt.ntrack) if(i != 1)&(i!=4) for j in range(i+1, opt.ntrack) if(j != 1)&(j!=4)]#去掉重复s
     config['drum_filter']= np.tile([1., .1, 0., 0., 0., .1], 16)
     config['beat_resolution'] = 24    # ???
 
@@ -58,40 +59,82 @@ class Evaluation:
         else:
             filename = "www" + '_' + postfix
         reshaped = binarized.reshape((-1,) + binarized.shape[2:])
-        mat_path = os.path.join('.', filename+'.npy')
         a, b = self.metric.eval(reshaped, mat_path=None)
         self.score_matrix_mean.append(a)
         self.score_pair_matrix_mean.append(b)
         return a, b
     
-    def write_npy(self, path):
-        # calculate average
-        average_score_matrix_mean = 0
-        for i in self.score_matrix_mean:
-            average_score_matrix_mean += i
-        average_score_matrix_mean /= (len(self.score_matrix_mean)*1.0)
+    def write_txt(self, mode="normal"):
 
-        average_score_pair_matrix_mean = 0
-        for i in self.score_pair_matrix_mean:
-            average_score_pair_matrix_mean += i
-        average_score_pair_matrix_mean /= (len(self.score_matrix_mean)*1.0)
+        if mode == "real":
+            info_dict = {
+                'score_matrix_mean': self.score_matrix_mean,
+                'score_pair_matrix_mean': self.score_pair_matrix_mean,
+                }
+            print('[*] Saving score matrices...')
+
+            with open("./Metrics/" + mode  + ".txt", "w") as f:
+                origin_stdout = sys.stdout
+                sys.stdout = f
+
+                print("========= This is in track")
+                self.metric.print_metrics_mat(self.score_matrix_mean[0])
+
+                print("\n")
+                print("\n")
+                print("\n")
+                print("\n")
+
+                print("========= This is track vs track")
+                self.metric.print_metrics_pair(self.score_pair_matrix_mean[0])
+                    
+                print("\n")
+                print("\n")
+                print("\n")
+                print("\n")
+                sys.stdout = origin_stdout
 
 
-        if not path.endswith(".npy"):
-            path = path + '.npy'
-        info_dict = {
-            'score_matrix_mean': self.score_matrix_mean,
-            'score_pair_matrix_mean': self.score_pair_matrix_mean,
-            'average_score_matrix_mean': average_score_matrix_mean,
-            'average_score_pair_matrix_mean': average_score_pair_matrix_mean
-            }
-        print('[*] Saving score matrices...')
-        np.save(path, info_dict)
-        print("Successfully saved to", path)
 
-def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=5):
+
+
+        if mode != "real":
+            # calculate average
+            average_score_matrix_mean = 0
+            for i in self.score_matrix_mean:
+                average_score_matrix_mean += i
+            average_score_matrix_mean /= (len(self.score_matrix_mean)*1.0)
+
+            average_score_pair_matrix_mean = 0
+            for i in self.score_pair_matrix_mean:
+                average_score_pair_matrix_mean += i
+            average_score_pair_matrix_mean /= (len(self.score_matrix_mean)*1.0)
+
+
+            info_dict = {
+                'score_matrix_mean': self.score_matrix_mean,
+                'score_pair_matrix_mean': self.score_pair_matrix_mean,
+                'average_score_matrix_mean': average_score_matrix_mean,
+                'average_score_pair_matrix_mean': average_score_pair_matrix_mean
+                }
+            print('[*] Saving score matrices...')
+
+            with open("./Metrics/" + mode  + ".txt", "w") as f:
+                origin_stdout = sys.stdout
+                sys.stdout = f
+                print("========= This is average in track")
+                self.metric.print_metrics_mat(average_score_matrix_mean)
+                print("========= This is average track vs track")
+                self.metric.print_metrics_pair(average_score_pair_matrix_mean)
+            
+                sys.stdout = origin_stdout
+
+
+
+def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=10):
     config = generate_config(opt)
     metric = Evaluation(config)
+    denoise_metric = Evaluation(config)
 
     #if torch.is_tensor(in_s) == False:
     if in_s is None:
@@ -147,27 +190,22 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
                 test_round = fake > 0.5
-                denoise = functions.denoise_5D(test_round)
-                save_image('%s/%d.png' % (dir2save, i), test_round, (1,1))
-                save_midi('%s/%d.mid' % (dir2save, i), test_round, opt)
+                a, b = metric.run_eval(test_round.copy(), str(i))
+                save_image('%s/%d.png' % (dir2save, i), test_round.copy(), (1,1))
+                save_midi('%s/%d.mid' % (dir2save, i), test_round.copy(), opt)
 
-                save_image('%s/%d_denoise.png' % (dir2save, i), denoise, (1,1))
-                save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise, opt)
+                denoise = functions.denoise_5D(test_round.copy(), opt)
+                a, b = denoise_metric.run_eval(denoise, str(i))
+                save_image('%s/%d_denoise.png' % (dir2save, i), denoise.copy(), (1,1))
+                save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise.copy(), opt)
 
 
-                #config = generate_config(opt)
-                #metric = Evaluation(config)
-                a, b = metric.run_eval(test_round, str(i))
 
-                print("******************** in track ********************")
-                metric.metric.print_metrics_mat(a)
-                
-                print("******************** track vs. track ********************")
-                metric.metric.print_metrics_pair(b)
 
 
                 #metric.run_eval(test_round)
             images_cur.append(I_curr)
         n+=1
-    metric.write_npy("total.npy")
+    metric.write_txt()
+    denoise_metric.write_txt("denoise")
     return I_curr.detach()

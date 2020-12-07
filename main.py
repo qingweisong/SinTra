@@ -51,21 +51,22 @@ if __name__ == '__main__':
     print("The program_num = {}".format(opt.program_num))
     print("The max of velocity = %d" % max(opt.vel_max))
     print("The min of velocity = %d" % min(opt.vel_min))
-    print(real_.shape)
 
 
     config = generate_config(opt)
-    metric = Evaluation(config)
-    a, b = metric.run_eval(real_)
+    real_metric = Evaluation(config)
+    real_metric.run_eval(real_)
+    real_metric.write_txt("real")
 
-    print("*********************** in track ***********************")
-    metric.metric.print_metrics_mat(a)
+    #a, b = metric.run_eval(real_)
+    # print("*********************** in track ***********************")
+    # metric.metric.print_metrics_mat(a)
     
-    print("******************** track vs. track ********************")
-    metric.metric.print_metrics_pair(b)
+    # print("******************** track vs. track ********************")
+    # metric.metric.print_metrics_pair(b)
 
 
-    #print(real_.shape)
+
     print('Training set size: %d' % real_.shape[0])
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
     train(opt, Gs, Zs, reals, NoiseAmp)
