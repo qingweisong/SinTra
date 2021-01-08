@@ -21,6 +21,7 @@ from SMGAN.training import *
 from config import get_arguments
 from SMGAN.metrics import Metrics
 import sys
+import muspy
 
 def generate_config(opt):
     config = {}
@@ -135,7 +136,25 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
     config = generate_config(opt)
     metric = Evaluation(config)
     denoise_metric = Evaluation(config)
-
+    '''
+    pitch_range
+    n_pitches_used
+    n_pitch_classes_used
+    polyphony
+    polyphony_rate
+    pitch_in_scale_rate
+    scale_consistency
+    pitch_entropy
+    pitch_class_entropy
+    empty_beat_rate
+    drum_in_pattern_rate_duple
+    drum_in_pattern_rate_triple
+    drum_pattern_consistency
+    groove_consistency_64
+    muspy.empty_measure_rate_64
+    '''
+    score_origin = []
+    score_denoise = []
     #if torch.is_tensor(in_s) == False:
     if in_s is None:
         in_s = torch.full(reals[0].shape, 0, device=opt.device)
@@ -190,22 +209,52 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
                 test_round = fake > 0.5
-                a, b = metric.run_eval(test_round.copy(), str(i))
+                # a, b = metric.run_eval(test_round.copy(), str(i))
                 save_image('%s/%d.png' % (dir2save, i), test_round.copy(), (1,1))
-                save_midi('%s/%d.mid' % (dir2save, i), test_round.copy(), opt)
-
+                multitrack = save_midi('%s/%d.mid' % (dir2save, i), test_round.copy(), opt)
+                music = muspy.from_pypianoroll_track(multitrack)
+                score_origin.append([
+                    muspy.pitch_range(music),
+                    muspy.n_pitches_used(music),
+                    muspy.n_pitch_classes_used(music),
+                    muspy.polyphony(music),
+                    muspy.polyphony_rate(music, threshold=2),
+                    muspy.pitch_in_scale_rate(music, root=1, mode='major'),
+                    muspy.scale_consistency(music),
+                    muspy.pitch_entropy(music),
+                    muspy.pitch_class_entropy(music),
+                    muspy.empty_beat_rate(music),
+                    muspy.drum_in_pattern_rate(music, meter='duple'),
+                    muspy.drum_pattern_consistency(music),
+                    muspy.groove_consistency(music, measure_resolution=4096),
+                    muspy.empty_measure_rate(music, measure_resolution=4096)
+                ])
+                
                 denoise = functions.denoise_5D(test_round.copy(), opt)
-                a, b = denoise_metric.run_eval(denoise, str(i))
+                # a, b = denoise_metric.run_eval(denoise, str(i))
                 save_image('%s/%d_denoise.png' % (dir2save, i), denoise.copy(), (1,1))
-                save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise.copy(), opt)
-
-
-
-
+                multitrack = save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise.copy(), opt)
+                music = muspy.from_pypianoroll_track(multitrack)
+                score_denoise.append([
+                    muspy.pitch_range(music),
+                    muspy.n_pitches_used(music),
+                    muspy.n_pitch_classes_used(music),
+                    muspy.polyphony(music),
+                    muspy.polyphony_rate(music, threshold=2),
+                    muspy.pitch_in_scale_rate(music, root=1, mode='major'),
+                    muspy.scale_consistency(music),
+                    muspy.pitch_entropy(music),
+                    muspy.pitch_class_entropy(music),
+                    muspy.empty_beat_rate(music),
+                    muspy.drum_in_pattern_rate(music, meter='duple'),
+                    muspy.drum_pattern_consistency(music),
+                    muspy.groove_consistency(music, measure_resolution=4096),
+                    muspy.empty_measure_rate(music, measure_resolution=4096)
+                ])
 
                 #metric.run_eval(test_round)
             images_cur.append(I_curr)
         n+=1
-    metric.write_txt()
-    denoise_metric.write_txt("denoise")
+    # metric.write_txt()
+    # denoise_metric.write_txt("denoise")
     return I_curr.detach()
