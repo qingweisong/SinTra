@@ -41,7 +41,7 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
     if is_drums is None:
         is_drums = [False] * len(pianorolls)
 
-    multitrack = Multitrack(resolution=beat_resolution, tempo=tempo)
+    multitrack = Multitrack(resolution=beat_resolution, tempo=tempo*1.0)
     for idx in range(pianorolls.shape[2]):
         if track_names is None:
             tmp = pianorolls[..., idx]
