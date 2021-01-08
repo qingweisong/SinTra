@@ -41,7 +41,7 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
     if is_drums is None:
         is_drums = [False] * len(pianorolls)
 
-    multitrack = Multitrack(beat_resolution=beat_resolution, tempo=tempo)
+    multitrack = Multitrack(resolution=beat_resolution, tempo=tempo)
     for idx in range(pianorolls.shape[2]):
         if track_names is None:
             tmp = pianorolls[..., idx]
@@ -56,6 +56,7 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
                           is_drums[idx], track_names[idx])
         multitrack.append_track(track)
     multitrack.write(filepath)
+    return multitrack
 
 def save_midi(filepath, phrases, opt):
     """
@@ -86,4 +87,4 @@ def save_midi(filepath, phrases, opt):
     pad_width = ((0, 0), (0, opt.pause_between_samples), (0, 0), (0, 0))
     padded = np.pad(reshaped, pad_width, 'constant')
     pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])#(42*4+96, 56, 6)
-    write_midi(filepath, pianorolls, opt.program_num, opt.is_drum, tempo=opt.tempo)
+    return write_midi(filepath, pianorolls, opt.program_num, opt.is_drum, tempo=opt.tempo)

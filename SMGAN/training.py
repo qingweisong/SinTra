@@ -191,15 +191,16 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         ###########################
 
         for j in range(opt.Gsteps):
+            fake = netG(noise.detach(),prev)
             netG.zero_grad()
             output = netD(fake)#????????
             errG = -output.mean()
-            errG.backward(retain_graph=True)
+            errG.backward()
             if opt.alpha!= 0:#reconstruction loss weight=10
                 loss = nn.MSELoss()#recloss
                 Z_opt = opt.noise_amp*z_opt+z_prev#该阶段重构输入
                 rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev),real)
-                rec_loss.backward(retain_graph=True)
+                rec_loss.backward()
                 rec_loss = rec_loss.detach()
             optimizerG.step()
 
