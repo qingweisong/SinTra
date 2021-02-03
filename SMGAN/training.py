@@ -10,6 +10,7 @@ import torch.utils.data
 import math
 import matplotlib.pyplot as plt
 import wandb
+from tqdm import tqdm
 
 wandb.init(
     project="single-musegan",
@@ -122,7 +123,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     z_opt2plot = []#rec_loss
 
     print('********************Training start!********************')
-    for epoch in range(opt.niter):#一阶段2000个epoch
+    for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         if (Gs == []):#只有第一阶段有z_opt   生成重构图的噪声
             ########################################！！！！！！！！！！第一阶段噪声每track相同
             z_opt = functions.generate_noise([1,opt.nzx,opt.nzy], device=opt.device)#(1,1,4*h,w)

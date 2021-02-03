@@ -22,6 +22,7 @@ from config import get_arguments
 from SMGAN.metrics import Metrics
 import sys
 import muspy
+from tqdm import tqdm
 
 def generate_config(opt):
     config = {}
@@ -169,7 +170,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
         images_prev = images_cur
         images_cur = []
 
-        for i in range(0,num_samples,1):
+        for i in tqdm(range(0,num_samples,1)):
             if n == 0:
                 z_curr = functions.generate_noise([1,nzx,nzy], device=opt.device)
                 z_curr = z_curr.expand(1,opt.ntrack ,z_curr.shape[2],z_curr.shape[3])

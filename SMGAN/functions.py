@@ -15,6 +15,9 @@ import random
 from sklearn.cluster import KMeans
 import imageio
 import pypianoroll
+import time
+
+cur_time_str = "_" + "-".join(map(str, time.localtime(time.time())[0:6]))
 
 def load_phrase_from_npy(opt):#np.load()进来就是数组
     data = np.load('training_data/%s/%s' % (opt.input_dir, opt.input_phrase))
@@ -105,12 +108,19 @@ def generate_dir2save(opt):
     dir2save = None
     #TrainModels/
     if (opt.mode == 'train'):
-        dir2save = 'TrainedModels/%s_12.2_metrics/scale_factor=%f,alpha=%d' % (opt.input_phrase[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (
+            opt.input_phrase[:-4] + cur_time_str, 
+            opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
-        dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (opt.input_phrase[:-4], opt.gen_start_scale)
+        dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (
+            opt.input_phrase[:-4] + cur_time_str, 
+            opt.gen_start_scale)
     elif opt.mode == 'random_samples_arbitrary_sizes':
-        dir2save = 'Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.input_phrase[:-4], opt.scale_v, opt.scale_h)
+        dir2save = 'Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (
+            opt.input_phrase[:-4] + cur_time_str, 
+            opt.scale_v, 
+            opt.scale_h)
     return dir2save
 
 
