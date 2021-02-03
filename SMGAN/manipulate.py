@@ -161,9 +161,6 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
 
             if images_prev == []:
                 I_prev = m(in_s)
-                #I_prev = m(I_prev)
-                #I_prev = I_prev[:,:,0:z_curr.shape[2],0:z_curr.shape[3]]
-                #I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
             else:
                 I_prev = images_prev[i]
                 I_prev = imresize(dim_transformation_to_5(I_prev, opt),1/opt.scale_factor, opt)
@@ -190,22 +187,21 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                     pass
                 fake = functions.dim_transformation_to_5(I_curr.detach(), opt).numpy()#np 5
                 test_round = fake > 0.5
-                a, b = metric.run_eval(test_round.copy(), str(i))
+                if opt.mode == 'random_samples':
+                    a, b = metric.run_eval(test_round.copy(), str(i))
                 save_image('%s/%d.png' % (dir2save, i), test_round.copy(), (1,1))
                 save_midi('%s/%d.mid' % (dir2save, i), test_round.copy(), opt)
 
                 denoise = functions.denoise_5D(test_round.copy(), opt)
-                a, b = denoise_metric.run_eval(denoise, str(i))
+                if opt.mode == 'random_samples':
+                    a, b = denoise_metric.run_eval(denoise, str(i))
                 save_image('%s/%d_denoise.png' % (dir2save, i), denoise.copy(), (1,1))
                 save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise.copy(), opt)
-
-
-
-
 
                 #metric.run_eval(test_round)
             images_cur.append(I_curr)
         n+=1
-    metric.write_txt()
-    denoise_metric.write_txt("denoise")
+    if opt.mode == 'random_samples':
+        metric.write_txt()
+        denoise_metric.write_txt("denoise")
     return I_curr.detach()
