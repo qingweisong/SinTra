@@ -212,7 +212,8 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 # a, b = metric.run_eval(test_round.copy(), str(i))
                 save_image('%s/%d.png' % (dir2save, i), test_round.copy(), (1,1))
                 multitrack = save_midi('%s/%d.mid' % (dir2save, i), test_round.copy(), opt)
-                music = muspy.from_pypianoroll_track(multitrack)
+                # import ipdb; ipdb.set_trace()
+                music = muspy.from_pypianoroll(multitrack)
                 score_origin.append([
                     muspy.pitch_range(music),
                     muspy.n_pitches_used(music),
@@ -234,7 +235,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 # a, b = denoise_metric.run_eval(denoise, str(i))
                 save_image('%s/%d_denoise.png' % (dir2save, i), denoise.copy(), (1,1))
                 multitrack = save_midi('%s/%d_denoise.mid' % (dir2save, i), denoise.copy(), opt)
-                music = muspy.from_pypianoroll_track(multitrack)
+                music = muspy.from_pypianoroll(multitrack)
                 score_denoise.append([
                     muspy.pitch_range(music),
                     muspy.n_pitches_used(music),

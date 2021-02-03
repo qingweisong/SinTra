@@ -1,7 +1,7 @@
 """Utilities for writing piano-rolls to MIDI files.
 """
 import numpy as np
-from pypianoroll import Multitrack, Track
+from pypianoroll import Multitrack, Track, BinaryTrack
 
 def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
                track_names=None, velocity=100, tempo=120.0, beat_resolution=24):
@@ -40,21 +40,29 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
         program_nums = [0] * len(pianorolls)
     if is_drums is None:
         is_drums = [False] * len(pianorolls)
-
-    multitrack = Multitrack(resolution=beat_resolution, tempo=tempo*1.0)
+    
+    # import ipdb; ipdb.set_trace()
+    multitrack = Multitrack(resolution=beat_resolution, tempo=np.array([tempo*1.0]*pianorolls.shape[0]))
     for idx in range(pianorolls.shape[2]):
         if track_names is None:
             tmp = pianorolls[..., idx]
             below_pad =  (128 - tmp.shape[1]) // 2
             fore_pad = 128 - below_pad - tmp.shape[1]
             tmp = np.pad(tmp, ((0, 0), (below_pad, fore_pad)), "constant")
-            track = Track(tmp, int(program_nums[idx]),
-                          is_drums[idx])
+            track = BinaryTrack(
+                pianoroll = tmp, 
+                program = int(program_nums[idx]),
+                is_drum = is_drums[idx]
+                )
                       
         else:
-            track = Track(pianorolls[:, :, idx], program_nums[idx],
-                          is_drums[idx], track_names[idx])
-        multitrack.append_track(track)
+            track = BinaryTrack(
+                pianoroll = pianorolls[:, :, idx], 
+                program = program_nums[idx],
+                is_drum = is_drums[idx], 
+                name = track_names[idx]
+                )
+        multitrack.append(track)
     multitrack.write(filepath)
     return multitrack
 

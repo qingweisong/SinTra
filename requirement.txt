@@ -1,0 +1,110 @@
+alembic==1.5.0
+backcall==0.2.0
+certifi==2020.12.5
+chardet==4.0.0
+click==7.1.2
+cloudpickle==1.6.0
+configparser==5.0.1
+contextlib2==0.5.5
+cycler==0.10.0
+Cython @ file:///tmp/build/80754af9/cython_1605457646007/work
+databricks-cli==0.14.1
+decorator==4.4.2
+docker==4.4.1
+docker-pycreds==0.4.0
+entrypoints==0.3
+epc==0.0.5
+Flask==1.1.2
+gitdb==4.0.5
+GitPython==3.1.12
+gunicorn==20.0.4
+idna==2.10
+imageio==2.9.0
+importmagic==0.1.7
+ipdb==0.13.4
+ipython @ file:///tmp/build/80754af9/ipython_1604101197014/work
+ipython-genutils @ file:///tmp/build/80754af9/ipython_genutils_1606773439826/work
+itsdangerous==1.1.0
+jedi @ file:///tmp/build/80754af9/jedi_1606932564285/work
+Jinja2==2.11.2
+joblib==1.0.0
+jsonpath-ng==1.4.3
+kiwisolver==1.3.1
+Mako==1.0.12
+Markdown==3.1.1
+MarkupSafe==1.1.1
+matplotlib==3.3.3
+mido==1.2.9
+mkl-fft==1.2.0
+mkl-random==1.1.1
+mkl-service==2.3.0
+mlflow==1.0.0
+more-itertools==8.6.0
+music21==6.5.0
+muspy==0.3.0
+nanotime==0.5.2
+networkx==2.3
+numpy==1.19.5
+olefile==0.46
+pandas==1.1.5
+parso==0.7.1
+pathspec==0.5.9
+pathtools==0.1.2
+pbr==5.3.1
+pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
+pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
+Pillow==8.1.0
+ply==3.11
+pretty-midi==0.2.8
+progress==1.5
+promise==2.3
+prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1602688806899/work
+protobuf==3.14.0
+psutil==5.6.2
+ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
+pyasn1==0.4.5
+pycocotools @ git+https://github.com/cocodataset/cocoapi.git@8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9#subdirectory=PythonAPI
+pycrypto==2.6.1
+pyfiglet==0.8.post1
+Pygments @ file:///tmp/build/80754af9/pygments_1610565767015/work
+pyparsing==2.4.7
+pypianoroll==1.0.3
+python-dateutil==2.8.1
+python-editor==1.0.4
+pytz==2019.1
+PyWavelets==1.1.1
+pyxdg==0.25
+PyYAML==5.1.1
+querystring-parser==1.2.3
+requests==2.25.1
+schema==0.7.0
+scikit-image==0.18.1
+scikit-learn==0.24.1
+scipy==1.6.0
+sentry-sdk==0.19.5
+sexpdata==0.0.3
+shortuuid==0.5.0
+simplejson==3.16.0
+six==1.15.0
+sklearn==0.0
+smmap==3.0.4
+SQLAlchemy==1.3.22
+sqlparse==0.4.1
+subprocess32==3.5.4
+tabulate==0.8.7
+tensorboardX==2.1
+threadpoolctl==2.1.0
+tifffile==2021.2.1
+torch==1.7.1
+torchaudio==0.7.0a0+a853dff
+torchtext==0.8.1
+torchvision==0.8.2
+tqdm==4.56.0
+traitlets @ file:///tmp/build/80754af9/traitlets_1602787416690/work
+typing-extensions @ file:///tmp/build/80754af9/typing_extensions_1598376058250/work
+urllib3==1.26.2
+wandb==0.10.17
+wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
+webcolors==1.11.1
+websocket-client==0.57.0
+Werkzeug==1.0.1
