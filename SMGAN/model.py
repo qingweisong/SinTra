@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
+from torchvision.models import resnet18
 
 
 #卷积块
@@ -21,6 +22,139 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
    
+# =================== Transformer START =========================
+
+# class PositionEmbeddingLearned(nn.Module):
+#     """
+#     Absolute pos embedding, learned.
+#     """
+#     def __init__(self, num_pos_feats=256):
+#         super().__init__()
+#         self.row_embed = nn.Embedding(50, num_pos_feats)
+#         self.col_embed = nn.Embedding(50, num_pos_feats)
+#         self.reset_parameters()
+
+#     def reset_parameters(self):
+#         nn.init.uniform_(self.row_embed.weight)
+#         nn.init.uniform_(self.col_embed.weight)
+
+#     def forward(self, tensor_list: NestedTensor):
+#         x = tensor_list.tensors
+#         h, w = x.shape[-2:]
+#         i = torch.arange(w, device=x.device)
+#         j = torch.arange(h, device=x.device)
+#         x_emb = self.col_embed(i)
+#         y_emb = self.row_embed(j)
+#         pos = torch.cat([
+#             x_emb.unsqueeze(0).repeat(h, 1, 1),
+#             y_emb.unsqueeze(1).repeat(1, w, 1),
+#         ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(x.shape[0], 1, 1, 1)
+#         return pos
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+
+class TransfomerBlock(nn.Module):
+
+    def __init__(
+            self,
+            track = 7,
+            ninp = 256,
+            nhead = 8,
+            nhid = 2048,
+            nlayers = 6,
+            dropout=0.5
+    ):
+        super(TransfomerBlock, self).__init__()
+        from torch.nn import TransformerEncoder, TransformerEncoderLayer
+        self.model_type = 'Transformer'
+        self.src_mask = None
+
+        # spatial positional encodings
+        # note that in baseline DETR we use sine positional encodings
+        self.row_embed = nn.Parameter(torch.rand(128, ninp // 2))
+        self.col_embed = nn.Parameter(torch.rand(512, ninp // 2))
+
+        encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
+        self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
+        # self.encoder = nn.Embedding(ntoken, ninp)
+        self.embeding = nn.Conv2d(track, ninp, 1)
+        self.ninp = ninp
+        self.decoder = nn.Conv2d(ninp, track, 1)
+
+        self.init_weights()
+
+    def _generate_square_subsequent_mask(self, sz):
+        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+        return mask
+
+    def init_weights(self):
+        initrange = 0.1
+        # self.encoder.weight.data.uniform_(-initrange, initrange)
+        self.decoder.bias.data.zero_()
+        self.decoder.weight.data.uniform_(-initrange, initrange)
+
+    # def forward(self, src):
+    #     if self.src_mask is None or self.src_mask.size(0) != len(src):
+    #         device = src.device
+    #         mask = self._generate_square_subsequent_mask(len(src)).to(device)
+    #         self.src_mask = mask
+
+    #     src = self.encoder(src) * math.sqrt(self.ninp)
+    #     src = self.pos_encoder(src)
+    #     output = self.transformer_encoder(src, self.src_mask)
+    #     output = self.decoder(output)
+    #     return output
+
+    def forward(self, img):
+        src = self.embeding(img)
+
+        originShape = src.shape
+
+        H, W = originShape[-2:]
+        pos = torch.cat([
+            self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
+            self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
+        ], dim=-1).flatten(0, 1).unsqueeze(1)
+
+        if self.src_mask is None or self.src_mask.size(0) != H*W:
+            device = src.device
+            mask = self._generate_square_subsequent_mask(H*W).to(device)
+            self.src_mask = mask
+
+        # import ipdb; ipdb.set_trace()
+
+        output = self.transformer_encoder(
+            pos + 0.1 * src.flatten(2).permute(2, 0, 1),
+            self.src_mask
+        ).permute(1, 2, 0)
+
+        output = output.reshape(originShape)
+
+        output = self.decoder(output)
+
+        return output
+
+
+# =================== Transformer END =====================================
+
 class WDiscriminator(nn.Module):
     def __init__(self, opt):
         super(WDiscriminator, self).__init__()

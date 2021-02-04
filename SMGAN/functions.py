@@ -147,7 +147,9 @@ def post_config(opt):
     opt.nfc_init = opt.nfc
     opt.min_nfc_init = opt.min_nfc
     opt.scale_factor_init = opt.scale_factor
-    opt.out = 'TrainedModels/%s/scale_factor=%f/' % (opt.input_phrase[:-4], opt.scale_factor)
+    opt.out = 'TrainedModels/%s/scale_factor=%f/' % (
+        opt.input_phrase[:-4] + cur_time_str, 
+        opt.scale_factor)
 
     if opt.manualSeed is None:
         opt.manualSeed = random.randint(1, 10000)
