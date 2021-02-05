@@ -162,7 +162,8 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
         in_s = dim_transformation_to_4(in_s)
     images_cur = []
     for G,Z_opt,noise_amp in zip(Gs,Zs,NoiseAmp):
-        pad1 = ((opt.ker_size-1)*opt.num_layer)/2
+        # pad1 = ((opt.ker_size-1)*opt.num_layer)/2
+        pad1 = 0
         m = nn.ZeroPad2d(int(pad1))
         nzx = (Z_opt.shape[2]-pad1*2)*scale_v
         nzy = (Z_opt.shape[3]-pad1*2)*scale_h

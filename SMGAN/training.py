@@ -19,6 +19,7 @@ wandb.init(
 )
 
 def train(opt, Gs, Zs, reals, NoiseAmp):
+    print("************** start training ****************")
     in_s = 0#
     num_scale = 0
     nfc_prev = 0#
@@ -30,6 +31,9 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         real_ = midiArrayReshape(real_, opt)
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
+
+    print("Input real_ shape = ", real_.shape)
+
     real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
     #real = functions.resize_0(real_, opt.scale1)#max 5维(np类型)
     reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
@@ -52,8 +56,9 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
             pass
         
         print("************* Save real_scale **************")
-        print(reals[num_scale].shape)
-        real_scale = functions.convert_image_np(reals[num_scale])
+        real_scale = functions.convert_image_np(reals[num_scale]) # to np
+        print("current real_scale shape is : ", end ="")
+        print(real_scale.shape)
         merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
         save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
         wandb.log({
@@ -101,8 +106,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     opt.nzy = real.shape[3]
     pad_noise = int(((opt.ker_size - 1) * opt.num_layer) / 2)#5？？
     pad_image = int(((opt.ker_size - 1) * opt.num_layer) / 2)#5
-    m_noise = nn.ZeroPad2d(int(pad_noise))#上下左右pad5行
-    m_image = nn.ZeroPad2d(int(pad_image))
+    m_noise = nn.ZeroPad2d(0)#上下左右pad5行
+    m_image = nn.ZeroPad2d(0)
 
     fixed_z = functions.generate_noise([real.shape[1],opt.nzx,opt.nzy], num_samp = opt.nsample, device = opt.device)#大小为(1, track, 4*h, w)的噪声矩阵
     z_opt = torch.full(fixed_z.shape, 0, device = opt.device)#全0矩阵  (b, c, 4*h, w)
@@ -260,7 +265,8 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
     if len(Gs) > 0:##其他阶段
         if mode == 'rand':
             count = 0
-            pad_noise = int(((opt.ker_size-1)*opt.num_layer)/2)
+            # pad_noise = int(((opt.ker_size-1)*opt.num_layer)/2)
+            pad_noise = 0
             for G,Z_opt,real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 ########################################！！！！！！！！！！第一阶段噪声每track相同
                 if count == 0:

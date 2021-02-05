@@ -4,7 +4,7 @@ import numpy as np
 from pypianoroll import Multitrack, Track, BinaryTrack
 
 def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
-               track_names=None, velocity=100, tempo=120.0, beat_resolution=24):
+               track_names=None, velocity=100, tempo=120.0, beat_resolution=4):
     """
     Write the given piano-roll(s) to a single MIDI file.
 
@@ -41,7 +41,6 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
     if is_drums is None:
         is_drums = [False] * len(pianorolls)
     
-    # import ipdb; ipdb.set_trace()
     multitrack = Multitrack(resolution=beat_resolution, tempo=np.array([tempo*1.0]*pianorolls.shape[0]))
     for idx in range(pianorolls.shape[2]):
         if track_names is None:

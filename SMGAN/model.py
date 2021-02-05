@@ -70,18 +70,18 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class TransfomerBlock(nn.Module):
+class TransformerBlock(nn.Module):
 
     def __init__(
             self,
             track = 7,
-            ninp = 256,
-            nhead = 8,
-            nhid = 2048,
-            nlayers = 6,
+            ninp = 32,
+            nhead = 4,
+            nhid = 256,
+            nlayers = 3,
             dropout=0.5
     ):
-        super(TransfomerBlock, self).__init__()
+        super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.src_mask = None
@@ -95,6 +95,8 @@ class TransfomerBlock(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         # self.encoder = nn.Embedding(ntoken, ninp)
         self.embeding = nn.Conv2d(track, ninp, 1)
+        self.pool = nn.MaxPool2d(2,2)
+        self.deconv = nn.ConvTranspose2d(ninp, ninp, 4, 2, 1, 0)
         self.ninp = ninp
         self.decoder = nn.Conv2d(ninp, track, 1)
 
@@ -124,7 +126,10 @@ class TransfomerBlock(nn.Module):
     #     return output
 
     def forward(self, img):
+        bilinear2d = nn.UpsamplingBilinear2d(img.shape[-2:])
+
         src = self.embeding(img)
+        src = self.pool(src)
 
         originShape = src.shape
 
@@ -148,6 +153,9 @@ class TransfomerBlock(nn.Module):
 
         output = output.reshape(originShape)
 
+        output = self.deconv(output)
+        output = bilinear2d(output)
+
         output = self.decoder(output)
 
         return output
@@ -158,42 +166,53 @@ class TransfomerBlock(nn.Module):
 class WDiscriminator(nn.Module):
     def __init__(self, opt):
         super(WDiscriminator, self).__init__()
-        self.is_cuda = torch.cuda.is_available()
-        N = int(opt.nfc)
-        self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1)
-        self.body = nn.Sequential()
-        for i in range(opt.num_layer-2):
-            N = int(opt.nfc/pow(2,(i+1)))
-            block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
-            self.body.add_module('block%d'%(i+1),block)
-        self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
+        # self.is_cuda = torch.cuda.is_available()
+        # N = int(opt.nfc)
+        # self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1)
+        # self.body = nn.Sequential()
+        # for i in range(opt.num_layer-2):
+        #     N = int(opt.nfc/pow(2,(i+1)))
+        #     block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
+        #     self.body.add_module('block%d'%(i+1),block)
+        # self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
+
+        self.transformer = TransformerBlock(opt.ntrack)
 
     def forward(self,x):
-        x = self.head(x)
-        x = self.body(x)
-        x = self.tail(x)
+        # x = self.head(x)
+        # x = self.body(x)
+        # x = self.tail(x)
+
+        x = self.transformer(x)
+
         return x
 
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
     def __init__(self, opt):
         super(GeneratorConcatSkip2CleanAdd, self).__init__()
-        self.is_cuda = torch.cuda.is_available()
-        N = opt.nfc#32 out_channel
-        self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
-        self.body = nn.Sequential()
-        for i in range(opt.num_layer-2):
-            N = int(opt.nfc/pow(2,(i+1)))
-            block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
-            self.body.add_module('block%d'%(i+1),block)
-        self.tail = nn.Sequential(
-            nn.Conv2d(max(N,opt.min_nfc),opt.ntrack,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
-            nn.Tanh()
-        )
+        # self.is_cuda = torch.cuda.is_available()
+        # N = opt.nfc#32 out_channel
+        # self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
+        # self.body = nn.Sequential()
+        # for i in range(opt.num_layer-2):
+        #     N = int(opt.nfc/pow(2,(i+1)))
+        #     block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
+        #     self.body.add_module('block%d'%(i+1),block)
+        # self.tail = nn.Sequential(
+        #     nn.Conv2d(max(N,opt.min_nfc),opt.ntrack,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+        #     nn.Tanh()
+        # )
+
+        self.transformer = TransformerBlock(opt.ntrack)
+
     def forward(self,x,y):
-        x = self.head(x)
-        x = self.body(x)
-        x = self.tail(x)
+        # x = self.head(x)
+        # x = self.body(x)
+        # x = self.tail(x)
+
+        x = self.transformer(x)
+
         ind = int((y.shape[2]-x.shape[2])/2)
         y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]#??????????
         return x+y

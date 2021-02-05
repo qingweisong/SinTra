@@ -53,10 +53,10 @@ if __name__ == '__main__':
     print("The min of velocity = %d" % min(opt.vel_min))
 
 
-    config = generate_config(opt)
-    real_metric = Evaluation(config)
-    real_metric.run_eval(real_)
-    real_metric.write_txt("real")
+    # config = generate_config(opt)
+    # real_metric = Evaluation(config)
+    # real_metric.run_eval(real_)
+    # real_metric.write_txt("real")
 
     #a, b = metric.run_eval(real_)
     # print("*********************** in track ***********************")
