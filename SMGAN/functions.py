@@ -104,31 +104,36 @@ def adjust_scales2phrase(real_,opt):#real_ (1, 4, 96, 84, 8)->(1,track, 4, 96, 1
     return real
 
 
-def generate_dir2save(opt):
+def generate_dir2save(opt, time=None):
     dir2save = None
+    if time is not None:
+        real_time = "_" + time
+    else:
+        real_time = cur_time_str
     #TrainModels/
     if (opt.mode == 'train'):
         dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (
-            opt.input_phrase[:-4] + cur_time_str, 
+            opt.input_phrase[:-4] + real_time,
             opt.scale_factor_init,opt.alpha)
     #Output/
     elif opt.mode == 'random_samples':
         dir2save = 'Output/RandomSamples/%s/gen_start_scale=%d' % (
-            opt.input_phrase[:-4] + cur_time_str, 
+            opt.input_phrase[:-4] + real_time,
             opt.gen_start_scale)
     elif opt.mode == 'random_samples_arbitrary_sizes':
         dir2save = 'Output/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (
-            opt.input_phrase[:-4] + cur_time_str, 
+            opt.input_phrase[:-4] + real_time,
             opt.scale_v, 
             opt.scale_h)
     return dir2save
 
 
-def load_trained_pyramid(opt, mode_='train'):
+def load_trained_pyramid(opt, mode_='train', time=None):
     #dir = 'TrainedModels/%s/scale_factor=%f' % (opt.input_name[:-4], opt.scale_factor_init)
     mode = opt.mode
     opt.mode = 'train'
-    dir = generate_dir2save(opt)
+    dir = generate_dir2save(opt, time)
+    print(dir)
     if(os.path.exists(dir)):
         Gs = torch.load('%s/Gs.pth' % dir)
         Zs = torch.load('%s/Zs.pth' % dir)

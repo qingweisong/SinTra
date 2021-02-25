@@ -158,7 +158,7 @@ class TransformerBlock(nn.Module):
             nhead = 4,
             nhid = 256,
             nlayers = 3,
-            dropout=0.5
+            dropout=0.8
     ):
         super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
@@ -180,7 +180,7 @@ class TransformerBlock(nn.Module):
 
         self.init_weights()
 
-    def _generate_square_subsequent_mask(self, sz):
+    def _generate_square_subsequent_mask(self, sz):#上三角矩阵triu
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
         return mask
