@@ -147,7 +147,7 @@ class TransformerBlock(nn.Module):
         # import ipdb; ipdb.set_trace()
 
         output = self.transformer_encoder(
-            pos + 0.1 * src.flatten(2).permute(2, 0, 1),
+            pos * 0.05 + src.flatten(2).permute(2, 0, 1),
             self.src_mask
         ).permute(1, 2, 0)
 

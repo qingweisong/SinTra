@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--gen_start_scale', type=int, help='generation start scale', default=0)
     # for random_samples_arbitrary_sizes:
     parser.add_argument('--scale_h', type=float, help='horizontal resize factor for random samples', default=1)
-    parser.add_argument('--scale_v', type=float, help='vertical resize factor for random samples', default=1.5)
+    parser.add_argument('--scale_v', type=float, help='vertical resize factor for random samples', default=1)
     parser.add_argument('--time', type=str, help='train model time', required=True)
     opt = parser.parse_args()
     opt = functions.post_config(opt)
