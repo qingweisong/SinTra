@@ -1,9 +1,9 @@
-.PHONY: hasname
 hasname:
 ifdef NAME
-	echo "NAME is $(NAME)"
+	@echo "NAME is $(NAME)"
 else
-	echo "please define NAME"
+	@echo "please define NAME"
+	@exit 1
 endif
 
 default:
@@ -11,11 +11,11 @@ default:
 
 run: train
 
-train:
-	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name $(NAME)  --niter 1
+train: hasname
+	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name $(NAME)  --niter 3000
 
-train_pickle:
-	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME) --niter 1
+train_pickle: hasname
+	CUDA_VISIBLE_DEVICES=0 python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME) --niter 5
 
 cleanModels:
 	rm -vi TrainedModels/* -rf
