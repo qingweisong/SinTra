@@ -74,12 +74,14 @@ class TransformerBlock(nn.Module):
 
     def __init__(
             self,
-            track = 7,
+            npitch,
+            track,
             ninp = 32,
+            ninp_pitch = 8,
             nhead = 4,
             nhid = 256,
             nlayers = 3,
-            dropout=0.5
+            dropout=0.5,
     ):
         super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
@@ -94,10 +96,12 @@ class TransformerBlock(nn.Module):
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         # self.encoder = nn.Embedding(ntoken, ninp)
+        self.embeding_picth = nn.Conv2d(npitch, ninp_pitch, 1)
         self.embeding = nn.Conv2d(track, ninp, 1)
         self.pool = nn.MaxPool2d(2,2)
         self.deconv = nn.ConvTranspose2d(ninp, ninp, 4, 2, 1, 0)
         self.ninp = ninp
+        self.decoder_pitch = nn.Conv2d(ninp_pitch, npitch, 1)
         self.decoder = nn.Conv2d(ninp, track, 1)
 
         self.init_weights()
@@ -126,10 +130,11 @@ class TransformerBlock(nn.Module):
     #     return output
 
     def forward(self, img):
-        bilinear2d = nn.UpsamplingBilinear2d(img.shape[-2:])
+        src = img.permute([0, 3, 2, 1])
+        src = self.embeding_picth(src)
+        src = src.permute([0, 3, 2, 1])
 
-        src = self.embeding(img)
-        src = self.pool(src)
+        src = self.embeding(src)
 
         originShape = src.shape
 
@@ -153,10 +158,11 @@ class TransformerBlock(nn.Module):
 
         output = output.reshape(originShape)
 
-        output = self.deconv(output)
-        output = bilinear2d(output)
-
         output = self.decoder(output)
+
+        output = output.permute([0, 3, 2, 1])
+        output = self.decoder_pitch(output)
+        output = output.permute([0, 3, 2, 1])
 
         return output
 
@@ -164,7 +170,7 @@ class TransformerBlock(nn.Module):
 # =================== Transformer END =====================================
 
 class WDiscriminator(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, npitch, opt):
         super(WDiscriminator, self).__init__()
         # self.is_cuda = torch.cuda.is_available()
         # N = int(opt.nfc)
@@ -176,7 +182,7 @@ class WDiscriminator(nn.Module):
         #     self.body.add_module('block%d'%(i+1),block)
         # self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
 
-        self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerBlock(npitch, opt.ntrack)
 
     def forward(self,x):
         # x = self.head(x)
@@ -189,7 +195,7 @@ class WDiscriminator(nn.Module):
 
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, npitch, opt):
         super(GeneratorConcatSkip2CleanAdd, self).__init__()
         # self.is_cuda = torch.cuda.is_available()
         # N = opt.nfc#32 out_channel
@@ -204,7 +210,7 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
         #     nn.Tanh()
         # )
 
-        self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerBlock(npitch, opt.ntrack)
 
     def forward(self,x,y):
         # x = self.head(x)

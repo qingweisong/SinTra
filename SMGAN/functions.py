@@ -16,6 +16,7 @@ from sklearn.cluster import KMeans
 import imageio
 import pypianoroll
 import time
+import pickle
 
 cur_time_str = "_" + "-".join(map(str, time.localtime(time.time())[0:6]))
 
@@ -26,6 +27,24 @@ def load_phrase_from_npy(opt):#np.load()进来就是数组
     data = data[0:1, :, :, :, :]
 
     return data
+
+
+def load_phrase_from_pickle(opt):
+    
+    with open('training_data/%s/%s' % (opt.input_dir, opt.input_phrase), 'rb') as p:
+        data = pickle.load(p, encoding="latin1")
+        data = data['train'][0]
+        song = np.zeros([1, 1, 4, len(data) // 4, 128])
+        for i in range(4):
+            for j in range(len(data)//4):
+                pitch = data[(i-1)*(len(data) // 4) + j]
+                song[0, 0, i, j, pitch] = 1
+
+    opt.is_drum = [False]
+    opt.program_num = [1]
+    opt.vel_max = [60]
+    opt.vel_min = [60]
+    return song
 
 
 def load_data_from_npz(opt):
