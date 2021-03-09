@@ -53,7 +53,7 @@ def weights_init(m):
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
+    def __init__(self, d_model, dropout=0.5, max_len=5000):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -66,7 +66,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
+        x = x + self.pe[:x.size(0), :] * 0.1
         return self.dropout(x)
 
 
@@ -82,16 +82,21 @@ class TransformerBlock(nn.Module):
             nhid = 256,
             nlayers = 3,
             dropout=0.5,
+            position_encoder_type="sine",
     ):
         super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.src_mask = None
 
-        # spatial positional encodings
-        # note that in baseline DETR we use sine positional encodings
-        self.row_embed = nn.Parameter(torch.rand(128, ninp // 2))
-        self.col_embed = nn.Parameter(torch.rand(512, ninp // 2))
+        # two positon encoder BEGIN
+        self.position_encoder_type = position_encoder_type
+        if position_encoder_type == "sine"
+            self.sine_position_encoder = PositionalEncoding(ninp)
+        else:
+            self.row_embed = nn.Parameter(torch.rand(128, ninp // 2))
+            self.col_embed = nn.Parameter(torch.rand(512, ninp // 2))
+        # twp position encoder END
 
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
@@ -139,22 +144,28 @@ class TransformerBlock(nn.Module):
         originShape = src.shape
 
         H, W = originShape[-2:]
-        pos = torch.cat([
-            self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
-            self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
-        ], dim=-1).flatten(0, 1).unsqueeze(1)
-
         if self.src_mask is None or self.src_mask.size(0) != H*W:
             device = src.device
             mask = self._generate_square_subsequent_mask(H*W).to(device)
             self.src_mask = mask
 
-        # import ipdb; ipdb.set_trace()
 
-        output = self.transformer_encoder(
-            pos * 0.05 + src.flatten(2).permute(2, 0, 1),
-            self.src_mask
-        ).permute(1, 2, 0)
+        # two position encoder  BEGIN
+        if self.position_encoder_type == 'sine':
+            output = self.transformer_encoder(
+                self.sine_position_encoder(src.flatten(2).permute(2, 0, 1)),
+                self.src_mask
+            ).permute(1, 2, 0)
+        else:
+            pos = torch.cat([
+                self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
+                self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
+            ], dim=-1).flatten(0, 1).unsqueeze(1)
+            output = self.transformer_encoder(
+                pos * 0.05 + src.flatten(2).permute(2, 0, 1),
+                self.src_mask
+            ).permute(1, 2, 0)
+        # two positon encoder END
 
         output = output.reshape(originShape)
 
