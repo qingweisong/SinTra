@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_dir', help='input phrase dir', required=True)
     parser.add_argument('--input_phrase', help='input phrase name', required=True)
     parser.add_argument('--mode', help='task to be done', default='train')
+    parser.add_argument('--name', help='describe this time ', default='train')
     opt = parser.parse_args()
 
     # init fixed parameters
@@ -18,18 +19,21 @@ if __name__ == '__main__':
     #生成路径
     dir2save = functions.generate_dir2save(opt)
 
+    if (os.path.exists(dir2save)):#若路径存在
+        print('trained model already exist')
+        exit(0)
+    else:
+        try:
+            os.makedirs(dir2save)
+        except OSError:
+            pass
+
+
     Gs = []
     Zs = []
     reals = []
     NoiseAmp = []#?
 
-    # if (os.path.exists(dir2save)):#若路径存在
-    #     print('trained model already exist')
-    # else:
-    #     try:
-    #         os.makedirs(dir2save)
-    #     except OSError:
-    #         pass
 
     print('********************Loading data!********************')
     #(phrase, track, 4, time, pitch)

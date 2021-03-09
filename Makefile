@@ -2,10 +2,10 @@
 run: train
 
 train:
-	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --niter 1000
+	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name tttttttt --niter 1
 
 train_pickle:
-	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --niter 1000
+	CUDA_VISIBLE_DEVICES=1 python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name wwwwwwwww --niter 1
 
 cleanModels:
 	rm -vi TrainedModels/* -rf

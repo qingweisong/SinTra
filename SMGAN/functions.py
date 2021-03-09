@@ -128,7 +128,7 @@ def generate_dir2save(opt, time=None):
     if time is not None:
         real_time = "_" + time
     else:
-        real_time = cur_time_str
+        real_time = opt.name
     #TrainModels/
     if (opt.mode == 'train'):
         dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (
