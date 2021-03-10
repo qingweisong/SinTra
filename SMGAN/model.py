@@ -81,22 +81,14 @@ class TransformerBlock(nn.Module):
             nhead = 4,
             nhid = 256,
             nlayers = 3,
-            dropout=0.5,
-            position_encoder_type="sine",
+            dropout=0.5
     ):
         super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.src_mask = None
 
-        # two positon encoder BEGIN
-        self.position_encoder_type = position_encoder_type
-        if position_encoder_type == "sine"
-            self.sine_position_encoder = PositionalEncoding(ninp)
-        else:
-            self.row_embed = nn.Parameter(torch.rand(128, ninp // 2))
-            self.col_embed = nn.Parameter(torch.rand(512, ninp // 2))
-        # twp position encoder END
+        self.sine_position_encoder = PositionalEncoding(ninp)
 
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
@@ -150,22 +142,10 @@ class TransformerBlock(nn.Module):
             self.src_mask = mask
 
 
-        # two position encoder  BEGIN
-        if self.position_encoder_type == 'sine':
-            output = self.transformer_encoder(
-                self.sine_position_encoder(src.flatten(2).permute(2, 0, 1)),
-                self.src_mask
-            ).permute(1, 2, 0)
-        else:
-            pos = torch.cat([
-                self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
-                self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
-            ], dim=-1).flatten(0, 1).unsqueeze(1)
-            output = self.transformer_encoder(
-                pos * 0.05 + src.flatten(2).permute(2, 0, 1),
-                self.src_mask
-            ).permute(1, 2, 0)
-        # two positon encoder END
+        output = self.transformer_encoder(
+            self.sine_position_encoder(src.flatten(2).permute(2, 0, 1)),
+            self.src_mask
+        ).permute(1, 2, 0)
 
         output = output.reshape(originShape)
 

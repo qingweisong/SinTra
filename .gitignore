@@ -1,6 +1,6 @@
 __pycache__/
-TrainedModels/
-training_data/
-Output/
+TrainedModels*/
+training_data*/
+Output*/
 wandb/
 .vscode/
