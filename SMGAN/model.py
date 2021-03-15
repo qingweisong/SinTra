@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from torchvision.models import resnet18
 import math
+import SMGAN.relativeAttention as relativeAttention
 
 #卷积块
 class ConvBlock(nn.Sequential):
@@ -66,7 +67,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :] * 0.1
+        x = x + self.pe[:x.size(0), :] * 1.2
         return self.dropout(x)
 
 
@@ -173,7 +174,11 @@ class WDiscriminator(nn.Module):
         #     self.body.add_module('block%d'%(i+1),block)
         # self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
 
+
+        #===============
+        # self.transformer = relativeAttention.TransformerBlock_RGA(npitch, opt.ntrack)
         self.transformer = TransformerBlock(npitch, opt.ntrack)
+
 
     def forward(self,x):
         # x = self.head(x)
@@ -201,6 +206,8 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
         #     nn.Tanh()
         # )
 
+        #===============
+        # self.transformer = relativeAttention.TransformerBlock_RGA(npitch, opt.ntrack)
         self.transformer = TransformerBlock(npitch, opt.ntrack)
 
     def forward(self,x,y):
