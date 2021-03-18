@@ -70,11 +70,10 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
 
 
         #初始化D,G模型       打印网络结构
-        G_curr, D_curr= init_models(reals[len(Gs)].shape[4], opt)
-        # if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
-        #     G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
-        #     #G_b_curr.load_state_dict(torch.load('%s/%d/netG_b.pth' % (opt.out, num_scale-1)))
-        #     D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
+        G_curr, D_curr= init_models(opt)
+        if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
+            G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
+            D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
 
         z_curr,in_s,G_curr = train_single_scale(D_curr,G_curr,  reals, Gs, Zs, in_s, NoiseAmp, opt)#训练该阶段模型并保存成netG.pth, netD.pth
 
@@ -199,16 +198,15 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         ###########################
 
         for j in range(opt.Gsteps):
-            fake = netG(noise.detach(),prev)
             netG.zero_grad()
             output = netD(fake)#????????
             errG = -output.mean()
-            errG.backward()
+            errG.backward(retain_graph=True)
             if opt.alpha!= 0:#reconstruction loss weight=10
                 loss = nn.MSELoss()#recloss
                 Z_opt = opt.noise_amp*z_opt+z_prev#该阶段重构输入
                 rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev),real)
-                rec_loss.backward()
+                rec_loss.backward(retain_graph=True)
                 rec_loss = rec_loss.detach()
             optimizerG.step()
 
@@ -303,14 +301,14 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
     return G_z
 
 #初始化模型
-def init_models(npitch, opt):
-    netG = model.GeneratorConcatSkip2CleanAdd(npitch, opt).to(opt.device)
+def init_models(opt):
+    netG = model.GeneratorConcatSkip2CleanAdd(opt).to(opt.device)
     netG.apply(model.weights_init)
     if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
         netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
     print(netG)#打印网络结构
 
-    netD = model.WDiscriminator(npitch, opt).to(opt.device)
+    netD = model.WDiscriminator(opt).to(opt.device)
     netD.apply(model.weights_init)
     if opt.netD != '':
         netD.load_state_dict(torch.load(opt.netD))

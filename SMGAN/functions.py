@@ -44,7 +44,14 @@ def load_phrase_from_pickle(opt):
     opt.program_num = [1]
     opt.vel_max = [60]
     opt.vel_min = [60]
-    return song
+
+    # 1, 1, 4, 96, 128
+    #   
+    # 1, 4, 96, 128
+
+    song = song[:, :, :, 0:(song.shape[3]//(16))*16, :]
+    song = song.reshape([-1, song.shape[1], song.shape[2], 16, song.shape[4]])
+    return song[1:2, :, :, :, :]
 
 
 def load_data_from_npz(opt):
@@ -93,6 +100,13 @@ def convert_image_np(inp):#(1, 4, h, w, track)     (b, c, h, w)->(hwc)
 
     #inp = np.clip(inp,0,1)#将数组中的元素限制在0,1之间，大于1的就使得它等于1，小于0的就使得它等于0
     return inp
+
+def create_reals_bar_pyramid(real, reals, opt):
+    _, _, bar, _, _ = real.shape
+    for i in range(1, bar):
+        tmp = real[:, :, 0:i, :, :]
+        reals.append(np2torch(tmp))
+    return reals
 
 def creat_reals_pyramid(real,reals,opt):
     for i in range(0, opt.stop_scale+1, 1):
@@ -326,7 +340,7 @@ def imresize_in(im, scale_factor=None, output_shape=None, kernel=None, antialias
 def fix_size(input_shape, output_shape, scale_factor):
     if scale_factor is not None:
         if np.isscalar(scale_factor):#判断输入参数scale1是否为一个标量
-            scale_factor = [scale_factor, scale_factor]#list没有维度概念, 数组有
+            scale_factor = [scale_factor, 1]#list没有维度概念, 数组有
         add = [1] * (len(input_shape) - len(scale_factor))#[1, 1, 1, 1]
         #scale_factor = np.array(scale_factor)
         #scale_factor = scale_factor.permute((2, 3, 0, 1, 5 ))

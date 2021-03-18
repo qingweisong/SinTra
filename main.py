@@ -47,7 +47,6 @@ if __name__ == '__main__':
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
     
-    print(real_)
     # import ipdb; ipdb.set_trace()
 
     opt.ntrack = real_.shape[1]
