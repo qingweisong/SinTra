@@ -32,21 +32,28 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
-        real_ = functions.load_phrase_from_pickle(opt)
+        real_ = functions.load_phrase_from_pickle(opt, all=True)
 
     print("Input real_ shape = ", real_.shape)
 
-    real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
-    #real = functions.resize_0(real_, opt.scale1)#max 5维(np类型)
-    reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
+    # real = functions.imresize_in(real_, opt.scale1)#max 5维(np类型)
+    # reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
 
-    # # binary
-    # reals_b = []
-    # for sub_tensor in reals:
-    #     reals_b.append(((sub_tensor >0) * 1.0).float())
-    # reals = reals_b
+    # handle data
+    reals = functions.get_reals(real_, reals, 16, [4,8,16])
+    opt.nbar = reals[0].shape[2]
 
-    while num_scale < opt.stop_scale + 1:#5
+    # scale = [2, 4]
+    # srcs = []
+    # tgts = []
+    # for i in range(len(scale)):
+    #     src, tgt = functions.batchify(real_, scale[i])
+    #     srcs.append(src)
+    #     reals.append(src)
+    #     tgts.append(tgt)
+
+
+    while num_scale < len(reals): #opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
         opt.min_nfc = min(opt.min_nfc_init * pow(2, math.floor(num_scale / 4)), 128)
 
@@ -75,7 +82,7 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
             D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
 
-        z_curr,in_s,G_curr = train_single_scale(D_curr,G_curr,  reals, Gs, Zs, in_s, NoiseAmp, opt)#训练该阶段模型并保存成netG.pth, netD.pth
+        z_curr,in_s,G_curr = train_single_scale(D_curr,G_curr, reals, Gs, Zs, in_s, NoiseAmp, opt)#训练该阶段模型并保存成netG.pth, netD.pth
 
         G_curr = functions.reset_grads(G_curr,False)#????????
         G_curr.eval()
@@ -143,9 +150,11 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         ############################
         # (1) Update D network: maximize D(x) + D(G(z))
         ###########################
+        memsD = tuple()
+        memsG = tuple()
         for j in range(opt.Dsteps):
             netD.zero_grad()
-            output = netD(real).to(opt.device)#real 4dim
+            output, memsD = netD(real, None) # .to(opt.device)#real 4dim
             errD_real = -output.mean()
             errD_real.backward(retain_graph = True)
             D_x = -errD_real.item()
@@ -163,6 +172,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
                     prev = draw_concat(Gs,Zs,reals,NoiseAmp,in_s,'rand',m_noise,m_image,opt)#prev指上一阶段的输出
                     prev = m_image(prev)#pad后
                     z_prev = draw_concat(Gs,Zs,reals,NoiseAmp,in_s,'rec',m_noise,m_image,opt)#z_prev指上一阶段的重构图
+                    print(real.shape)
+                    print(z_prev.shape)
                     criterion = nn.MSELoss()
                     RMSE = torch.sqrt(criterion(real, z_prev))#重构数据和原始数据对应点误差的平方和的均值再开根
                     opt.noise_amp = opt.noise_amp_init*RMSE#addative noise cont weight * RMSELoss
@@ -176,9 +187,9 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
                 noise = noise_
             else:
                 noise = opt.noise_amp*noise_ + prev#噪*+ fake
-
-            fake = netG(noise.detach(),prev)
-            output = netD(fake.detach())
+            
+            fake, _ = netG(noise.detach(),prev, None)
+            output, _ = netD(fake.detach(), None)
             errD_fake = output.mean()
             errD_fake.backward(retain_graph=True)
             D_G_z = output.mean().item()
@@ -199,13 +210,13 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         for j in range(opt.Gsteps):
             netG.zero_grad()
-            output = netD(fake)#????????
+            output, _ = netD(fake, None)
             errG = -output.mean()
             errG.backward(retain_graph=True)
             if opt.alpha!= 0:#reconstruction loss weight=10
                 loss = nn.MSELoss()#recloss
                 Z_opt = opt.noise_amp*z_opt+z_prev#该阶段重构输入
-                rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev),real)
+                rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev)[0],real)
                 rec_loss.backward(retain_graph=True)
                 rec_loss = rec_loss.detach()
             optimizerG.step()
@@ -215,7 +226,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
         #4tendor->5np
         fake = dim_transformation_to_5(fake.detach(), opt).numpy()
-        rec = netG(Z_opt.detach(), z_prev).detach()
+        rec  = netG(Z_opt.detach(), z_prev)[0].detach()
         rec = dim_transformation_to_5(rec, opt).numpy()
 
         #bool类型的矩阵   round bernoulli
@@ -275,26 +286,33 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
                 else:
                     z = functions.generate_noise([opt.ntrack, Z_opt.shape[2] - 2 * pad_noise, Z_opt.shape[3] - 2 * pad_noise], device=opt.device)
                 z = m_noise(z)
-                G_z = G_z[:,:,0:4*real_curr.shape[3],0:real_curr.shape[4]]
+                G_z = G_z[:,:,0:real_curr.shape[2]*real_curr.shape[3],0:real_curr.shape[4]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
-                G_z = G(z_in.detach(),G_z)
-                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)#上采样到下一尺度大小
+                G_z, _ = G(z_in.detach(),G_z)
+                cur_scale = real_next.shape[3] / (real_curr.shape[3]) 
+                G_z = imresize(dim_transformation_to_5(G_z, opt),cur_scale,opt)#上采样到下一尺度大小
                 #G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt, is_net = True)#上采样到下一尺度大小
-                G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
+                G_z = dim_transformation_to_4(G_z)[:,:,0:real_next.shape[2]*real_next.shape[3],0:real_next.shape[4]]
 
                 count += 1
         if mode == 'rec':
             count = 0
             for G,Z_opt,real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
-                G_z = G_z[:, :, 0:4*real_curr.shape[3], 0:real_curr.shape[4]]
+                G_z = G_z[:, :, 0:real_curr.shape[2]*real_curr.shape[3], 0:real_curr.shape[4]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*Z_opt+G_z
-                G_z = G(z_in.detach(),G_z)
+                G_z, _ = G(z_in.detach(),G_z)
 
-                G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt)
+
+                cur_scale = real_next.shape[3] / (real_curr.shape[3]) 
+                # print(real_next.shape)
+                # print(real_curr.shape)
+                # print(G_z.shape)
+                # print(cur_scale)
+                G_z = imresize(dim_transformation_to_5(G_z, opt),cur_scale,opt)
                 #G_z = imresize(dim_transformation_to_5(G_z, opt),1/opt.scale_factor,opt, is_net = True)
-                G_z = dim_transformation_to_4(G_z)[:,:,0:4*real_next.shape[3],0:real_next.shape[4]]
+                G_z = dim_transformation_to_4(G_z)[:,:,0:real_next.shape[2]*real_next.shape[3],0:real_next.shape[4]]
                 #if count != (len(Gs)-1):
                 #    G_z = m_image(G_z)
                 count += 1
@@ -306,13 +324,13 @@ def init_models(opt):
     netG.apply(model.weights_init)
     if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
         netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
-    print(netG)#打印网络结构
+    # print(netG)#打印网络结构
 
     netD = model.WDiscriminator(opt).to(opt.device)
     netD.apply(model.weights_init)
     if opt.netD != '':
         netD.load_state_dict(torch.load(opt.netD))
-    print(netD)#打印网络结构
+    # print(netD)#打印网络结构
 
     return netG, netD
 

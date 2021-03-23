@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torchvision.models import resnet18
 import math
 import SMGAN.relativeAttention as relativeAttention
+from SMGAN.model_xl import *
 
 #卷积块
 class ConvBlock(nn.Sequential):
@@ -67,7 +68,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :] * 0.5
+        x = x + self.pe[:x.size(0), :] * 0.1
         return self.dropout(x)
 
 
@@ -76,7 +77,7 @@ class TransformerBlock(nn.Module):
     def __init__(
             self,
             track,
-            ninp = 64,
+            ninp = 32,
             nhead = 8,
             nhid = 512,
             nlayers = 6,
@@ -93,10 +94,10 @@ class TransformerBlock(nn.Module):
         # embeding
         # 1st: pitch -> 64 -> 32 -> 1
         # 2rd: track -> feature
-        self.en_pitch1 = nn.Linear(track, 64)
-        self.en_pitch2 = nn.Linear(64, 32)
-        self.en_pitch3 = nn.Linear(32, 1)
-        self.embeding = nn.Conv2d(128, ninp, 1) # track 2 feature
+        self.en_track1 = nn.Linear(track, 16)
+        self.en_track2 = nn.Linear(16, 1)
+        self.en_pitch = nn.Linear(128, ninp)
+        self.embeding = nn.Conv2d(ninp, ninp, 1) # track 2 feature
 
         # transformer
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
@@ -105,9 +106,8 @@ class TransformerBlock(nn.Module):
         # deocder
         self.decoder = nn.Conv2d(ninp, 128, 1)
 
-        self.de_pitch1 = nn.Linear(1, 32)
-        self.de_pitch2 = nn.Linear(32, 64)
-        self.de_pitch3 = nn.Linear(64, track)
+        self.de_track1 = nn.Linear(1, 16)
+        self.de_track2 = nn.Linear(16, track)
 
         # self.init_weights()
 
@@ -135,12 +135,11 @@ class TransformerBlock(nn.Module):
     #     return output
 
     def forward(self, img):
+        img = self.en_pitch(img)
+        img = img.permute(0, 3, 2, 1).contiguous()   # 1, pitch, time, track
 
-        img = img.permute(0, 3, 2, 1)   # 1, pitch, time, track
-
-        src = self.en_pitch1(img) # pitch, time, 128 -> pitch, time, 64
-        src = self.en_pitch2(src) # pitch, time,  64 -> pitch, time, 32
-        src = self.en_pitch3(src) # pitch, time,  32 -> pitch, time,  1
+        src = self.en_track1(img) # pitch, time, 128 -> pitch, time, 64
+        src = self.en_track2(src) # pitch, time,  64 -> pitch, time, 32
         src = self.embeding(src)   # 1, feature, time , 1
 
         originShape = src.shape
@@ -157,14 +156,13 @@ class TransformerBlock(nn.Module):
         output = self.transformer_encoder(
             self.sine_position_encoder(src),
             self.src_mask
-        ).permute(2, 0, 1)
+        ).permute(2, 0, 1).contiguous()
 
         output = output.reshape(originShape)
 
         output = self.decoder(output)
-        output = self.de_pitch1(output)
-        output = self.de_pitch2(output)
-        output = self.de_pitch3(output)
+        output = self.de_track1(output)
+        output = self.de_track2(output)
 
         output = output.permute(0, 3, 2, 1)
 
@@ -189,17 +187,30 @@ class WDiscriminator(nn.Module):
 
         #===============
         # self.transformer = relativeAttention.TransformerBlock_RGA(opt.ntrack)
-        self.transformer = TransformerBlock(opt.ntrack)
+        # self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerXL(
+            opt.ntrack, 
+            # n_layer, 
+            # n_head, 
+            # d_model, 
+            # d_head, 
+            # d_inner,
+            # dropout, 
+            # dropatt
+            tgt_len=128,
+            mem_len=128,
+            ext_len=0,
+            )
 
 
-    def forward(self,x):
+    def forward(self,x, mems=None):
         # x = self.head(x)
         # x = self.body(x)
         # x = self.tail(x)
 
-        x = self.transformer(x)
+        x, mems = self.transformer(x, mems)
 
-        return x
+        return x, mems
 
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
@@ -220,100 +231,73 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
 
         #===============
         # self.transformer = relativeAttention.TransformerBlock_RGA(npitch, opt.ntrack)
-        self.transformer = TransformerBlock(opt.ntrack)
+        # self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerXL(
+            opt.ntrack, 
+            # n_layer, 
+            # n_head, 
+            # d_model, 
+            # d_head, 
+            # d_inner,
+            # dropout, 
+            # dropatt.
+            tgt_len=128,
+            mem_len=128,
+            ext_len=0,
+            )
 
-    def forward(self,x,y):
+    def forward(self,x,y, mems=None):
         # x = self.head(x)
         # x = self.body(x)
         # x = self.tail(x)
 
-        x = self.transformer(x)
+        x, memes = self.transformer(x, mems)
 
         ind = int((y.shape[2]-x.shape[2])/2)
         y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]#??????????
+        return x+y, memes
+
+
+
+class WDiscriminator_init(nn.Module):
+    def __init__(self, opt):
+        super(WDiscriminator, self).__init__()
+        self.is_cuda = torch.cuda.is_available()
+        N = int(opt.nfc)
+        self.head = ConvBlock(opt.nc_im,N,opt.ker_size,opt.padd_size,1)
+        self.body = nn.Sequential()
+        for i in range(opt.num_layer-2):
+            N = int(opt.nfc/pow(2,(i+1)))
+            block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
+            self.body.add_module('block%d'%(i+1),block)
+        self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
+
+    def forward(self,x):
+        x = self.head(x)
+        x = self.body(x)
+        x = self.tail(x)
+        return x
+
+
+class GeneratorConcatSkip2CleanAdd_init(nn.Module):
+    def __init__(self, opt):
+        super(GeneratorConcatSkip2CleanAdd, self).__init__()
+        self.is_cuda = torch.cuda.is_available()
+        N = opt.nfc
+        self.head = ConvBlock(opt.nc_im,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
+        self.body = nn.Sequential()
+        for i in range(opt.num_layer-2):
+            N = int(opt.nfc/pow(2,(i+1)))
+            block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
+            self.body.add_module('block%d'%(i+1),block)
+        self.tail = nn.Sequential(
+            nn.Conv2d(max(N,opt.min_nfc),opt.nc_im,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+            nn.Tanh()
+        )
+    def forward(self,x,y):
+        x = self.head(x)
+        x = self.body(x)
+        x = self.tail(x)
+        ind = int((y.shape[2]-x.shape[2])/2)
+        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]
         return x+y
-
-
-
-
-# class bar_main(nn.Sequential):
-#     def __init__(self, in_channel, out_channel):
-#         super(ConvBlock,self).__init__()
-#         self.add_module('transconv3d',nn.ConvTranspose3d(in_channel, 512, (1,4,1), (1,4,1), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(512)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-#         self.add_module('transconv3d',nn.ConvTranspose3d(512, 256, (1,1,3), (1,1,3), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(256)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-#         self.add_module('transconv3d',nn.ConvTranspose3d(256, 128, (1,4,1), (1,4,1), 0))
-#         self.add_module('norm',nn.BatchNorm2d(128)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-#         self.add_module('transconv3d',nn.ConvTranspose3d(128, out_channel, (1,1,3), (1,1,2), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(out_channel)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-
-# def weights_init(m):
-    
-
-# class Generator_temp(nn.Module):
-#     def __init__(self, opt):
-#         super(Generator_temp, self).__init__()
-#         self.dense = nn.Linear(32, 768)
-#         self.bn1 = nn.BatchNorm2d(768)#output channel=32
-#         #self.reshape1 = torch.reshape(32, 3, 1, 1, 256)
-#         self.transconv3d = nn.ConvTranspose3d(256, 32, (2, 1, 1), 1, 0)#output= input*kernerl_size - (kernel_size - stride)*(input - 1)
-#         self.bn2 = nn.BatchNorm2d(32)
-
-#     def forward(self, input):#(32, 32)
-#         x = F.leaky_relu(self.bn1(self.dense(input)))
-#         x = x.reshape(32, 3, 1, 1, 256)
-#         x = F.leaky_relu(self.bn2(self.transconv3d(x)))
-#         x = x.reshape(32, 4, 32)
-
-#         return x
-
-# class Generator_bar(nn.Module):
-#     def __init__(self, opt):
-#         super(Generator, self).__init__()
-
-#         self.head = bar_main(128, 64)
-
-#         self.body1 = nn.Sequential()#bar_pitch_time
-#         self.add_module('transconv3d',nn.ConvTranspose3d(64, 32, (1,1,12), (1,1,12), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(32)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-
-#         self.add_module('transconv3d', nn.ConvTranspose3d(32, 16, (1,6,1), (1,6,1), 0)),
-#         self.add_module('norm', nn.BatchNorm2d(16)),
-#         self.add_module('leaky_relu', F.leaky_relu(0.2)),
-
-#         self.body2 = nn.Sequential()#bar_time_pitch
-#         self.add_module('transconv3d',nn.ConvTranspose3d(64, 32, (1,6,1), (1,6,1), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(32)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-
-#         self.add_module('transconv3d',nn.ConvTranspose3d(32, 16, (1,1,12), (1,1,12), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(16)),
-#         self.add_module('leaky_relu',F.leaky_relu(0.2)),
-
-#         self.tail = nn.Sequential()#bar_merged
-#         self.add_module('transconv3d',nn.ConvTranspose3d(32, 1, (1,1,1), (1,1,1), 0)),
-#         self.add_module('norm',nn.BatchNorm2d(1)),
-#         self.add_module('sigmoid', F.sigmoid()),
-
-#     def forward(self, input):
-#         x = input.reshape(32, 4, 1, 1, 128)
-#         x = self.head(x)
-#         x1 = self.body1(x)
-#         x2 = self.body2(x)
-#         x = self.tail(x1+x2)
-
-#         return x
-
-# class Discriminator(nn.Module):
-#     def __init__(self, opt):
-#         super(Discriminator, self).__init__()
-
-#     def forward(self, x):
-
-#         return x

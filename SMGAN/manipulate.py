@@ -198,7 +198,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 z_curr = Z_opt
 
             z_in = noise_amp*(z_curr)+I_prev
-            I_curr = G(z_in.detach(),I_prev)#tensor 4
+            I_curr, _ = G(z_in.detach(),I_prev)#tensor 4
 
             if n == len(reals)-1:
                 if opt.mode == 'train':

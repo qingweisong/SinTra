@@ -28,30 +28,57 @@ def load_phrase_from_npy(opt):#np.load()进来就是数组
 
     return data
 
+def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
+    # [track, all_bars, time, pitch]
+    # return [ [1, track, ... ], ]
+    track, all_bars, time, pitch = song.shape
 
-def load_phrase_from_pickle(opt):
-    
+    down_scale = in_scale / np.array(out_scale, dtype=np.int)
+
+    for i in down_scale:
+        tmp = song[:, :, ::int(i), :]
+        tmp = tmp[None, :, :, :, :]
+        reals.append(np2torch(tmp))
+    return reals
+
+
+def batchify(song, length):
+    # [track, all_bars, time, pitch]
+    # return [N, track, all_bars, time, pitch]
+    print(song.shape)
+    print(length)
+    track, all_bars, time, pitch = song.shape
+    src = song.reshape([-1, track, length, time, pitch])
+    tgt = src[1:, :, :, :, :]
+    print(src[0:1].shape)
+    # return src[0:-1, :, :, :, :], tgt
+    return np2torch(src[0:1, :, :, :, :]), np2torch(tgt[0:1, :, :, :, :])
+
+
+def load_phrase_from_pickle(opt, all=False):
+    # 1 bar has 16 step
     with open('training_data/%s/%s' % (opt.input_dir, opt.input_phrase), 'rb') as p:
         data = pickle.load(p, encoding="latin1")
-        data = data['train'][0]
-        song = np.zeros([1, 1, 4, len(data) // 4, 128])
-        for i in range(4):
-            for j in range(len(data)//4):
-                pitch = data[(i-1)*(len(data) // 4) + j]
-                song[0, 0, i, j, pitch] = 1
+        data = data['train'][0] # len = 192
+        song = np.zeros([1, 4*16 * (len(data) // (4*16)), 128])
+        for i in range(4*16 * (len(data) // (4*16))):
+            pitch = data[i]
+            song[0, i, pitch] = 1
+
 
     opt.is_drum = [False]
     opt.program_num = [1]
     opt.vel_max = [60]
     opt.vel_min = [60]
 
-    # 1, 1, 4, 96, 128
-    #   
-    # 1, 4, 96, 128
-
-    song = song[:, :, :, 0:(song.shape[3]//(16))*16, :]
-    song = song.reshape([-1, song.shape[1], song.shape[2], 16, song.shape[4]])
-    return song[1:2, :, :, :, :]
+    if all == False:
+        song = song.reshape([1, -1, 4, 16, 128])
+        song = song.transpose(1, 0, 2, 3, 4)
+        return song[1:2, :, :, :, :]
+    else:
+        # [track, all_bars, time, pitch]
+        song = song.reshape([1, -1, 16, 128])
+        return song
 
 
 def load_data_from_npz(opt):
@@ -250,7 +277,7 @@ def calc_gradient_penalty(netD, real_data, fake_data, LAMBDA, device):
     interpolates = interpolates.to(device)#.cuda()
     interpolates = torch.autograd.Variable(interpolates, requires_grad=True)
 
-    disc_interpolates = netD(interpolates)
+    disc_interpolates, _ = netD(interpolates, None)
 
     gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates,
                               grad_outputs=torch.ones(disc_interpolates.size()).to(device),#.cuda(), #if use_cuda else torch.ones(
