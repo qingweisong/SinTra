@@ -187,9 +187,9 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
                 #I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])
             else:
                 I_prev = images_prev[i]
-                I_prev = imresize(dim_transformation_to_5(I_prev, opt),1/opt.scale_factor, opt)
+                I_prev = imresize(dim_transformation_to_5(I_prev, opt), 2, opt)
                 #I_prev = imresize(dim_transformation_to_5(I_prev, opt),1/opt.scale_factor, opt, is_net = True)
-                I_prev = dim_transformation_to_4(I_prev)[:, :, 0:round(scale_v * 4 * reals[n].shape[3]), 0:round(scale_h * reals[n].shape[4])]
+                I_prev = dim_transformation_to_4(I_prev)[:, :, 0:round(scale_v * reals[n].shape[2] * reals[n].shape[3]), 0:round(scale_h * reals[n].shape[4])]
                 I_prev = m(I_prev)
                 I_prev = I_prev[:,:,0:z_curr.shape[2],0:z_curr.shape[3]]
                 I_prev = functions.upsampling(I_prev,z_curr.shape[2],z_curr.shape[3])

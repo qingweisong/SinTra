@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_phrase', help='input phrase name', required=True)
     parser.add_argument('--mode', help='task to be done', default='train')
     parser.add_argument('--name', help='describe this time ', default='train')
+    parser.add_argument('--model_type', help='describe this time ', default='transformerXL')
     opt = parser.parse_args()
 
     # init fixed parameters
@@ -79,3 +80,8 @@ if __name__ == '__main__':
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
     train(opt, Gs, Zs, reals, NoiseAmp)
     SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt)
+
+    scale_v = 2
+    opt.gen_start_scale = 0
+    in_s = functions.generate_in2coarsest(reals, scale_v, 1,opt)
+    SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, in_s, scale_v=scale_v, scale_h=1)

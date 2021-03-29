@@ -55,7 +55,7 @@ def weights_init(m):
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout=0.5, max_len=5000):
+    def __init__(self, d_model, dropout=0.2, max_len=5000):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -81,7 +81,7 @@ class TransformerBlock(nn.Module):
             nhead = 8,
             nhid = 512,
             nlayers = 6,
-            dropout=0.4
+            dropout=0.2
     ):
         super(TransformerBlock, self).__init__()
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
@@ -170,24 +170,31 @@ class TransformerBlock(nn.Module):
 
 
 # =================== Transformer END =====================================
-
-class WDiscriminator(nn.Module):
+class D_transform(nn.Module):
     def __init__(self, opt):
-        super(WDiscriminator, self).__init__()
-        # self.is_cuda = torch.cuda.is_available()
-        # N = int(opt.nfc)
-        # self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1)
-        # self.body = nn.Sequential()
-        # for i in range(opt.num_layer-2):
-        #     N = int(opt.nfc/pow(2,(i+1)))
-        #     block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
-        #     self.body.add_module('block%d'%(i+1),block)
-        # self.tail = nn.Conv2d(max(N,opt.min_nfc),1,kernel_size=opt.ker_size,stride=1,padding=opt.padd_size)
+        super(D_transform, self).__init__()
+        self.transformer = TransformerBlock(opt.ntrack)
+    
+    def forward(self,x, mems=None):
+        x = self.transformer(x)
+        return x, None
 
 
-        #===============
-        # self.transformer = relativeAttention.TransformerBlock_RGA(opt.ntrack)
-        # self.transformer = TransformerBlock(opt.ntrack)
+class G_transform(nn.Module):
+    def __init__(self, opt):
+        super(G_transform, self).__init__()
+        self.transformer = TransformerBlock(opt.ntrack)
+    
+    def forward(self, x, y, mems=None):
+        x = self.transformer(x)
+        ind = int((y.shape[2]-x.shape[2])/2)
+        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]
+        return x+y, None
+
+
+class D_transformXL(nn.Module):
+    def __init__(self, opt):
+        super(D_transformXL, self).__init__()
         self.transformer = TransformerXL(
             opt.ntrack, 
             # n_layer, 
@@ -204,34 +211,15 @@ class WDiscriminator(nn.Module):
 
 
     def forward(self,x, mems=None):
-        # x = self.head(x)
-        # x = self.body(x)
-        # x = self.tail(x)
 
         x, mems = self.transformer(x, mems)
 
         return x, mems
 
 
-class GeneratorConcatSkip2CleanAdd(nn.Module):
+class G_transformXL(nn.Module):
     def __init__(self, opt):
-        super(GeneratorConcatSkip2CleanAdd, self).__init__()
-        # self.is_cuda = torch.cuda.is_available()
-        # N = opt.nfc#32 out_channel
-        # self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
-        # self.body = nn.Sequential()
-        # for i in range(opt.num_layer-2):
-        #     N = int(opt.nfc/pow(2,(i+1)))
-        #     block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
-        #     self.body.add_module('block%d'%(i+1),block)
-        # self.tail = nn.Sequential(
-        #     nn.Conv2d(max(N,opt.min_nfc),opt.ntrack,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
-        #     nn.Tanh()
-        # )
-
-        #===============
-        # self.transformer = relativeAttention.TransformerBlock_RGA(npitch, opt.ntrack)
-        # self.transformer = TransformerBlock(opt.ntrack)
+        super(G_transformXL, self).__init__()
         self.transformer = TransformerXL(
             opt.ntrack, 
             # n_layer, 
@@ -247,9 +235,6 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             )
 
     def forward(self,x,y, mems=None):
-        # x = self.head(x)
-        # x = self.body(x)
-        # x = self.tail(x)
 
         x, memes = self.transformer(x, mems)
 
@@ -261,10 +246,10 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
 
 class WDiscriminator_init(nn.Module):
     def __init__(self, opt):
-        super(WDiscriminator, self).__init__()
+        super(WDiscriminator_init, self).__init__()
         self.is_cuda = torch.cuda.is_available()
         N = int(opt.nfc)
-        self.head = ConvBlock(opt.nc_im,N,opt.ker_size,opt.padd_size,1)
+        self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1)
         self.body = nn.Sequential()
         for i in range(opt.num_layer-2):
             N = int(opt.nfc/pow(2,(i+1)))
@@ -281,17 +266,17 @@ class WDiscriminator_init(nn.Module):
 
 class GeneratorConcatSkip2CleanAdd_init(nn.Module):
     def __init__(self, opt):
-        super(GeneratorConcatSkip2CleanAdd, self).__init__()
+        super(GeneratorConcatSkip2CleanAdd_init, self).__init__()
         self.is_cuda = torch.cuda.is_available()
         N = opt.nfc
-        self.head = ConvBlock(opt.nc_im,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
+        self.head = ConvBlock(opt.ntrack,N,opt.ker_size,opt.padd_size,1) #GenConvTransBlock(opt.nc_z,N,opt.ker_size,opt.padd_size,opt.stride)
         self.body = nn.Sequential()
         for i in range(opt.num_layer-2):
             N = int(opt.nfc/pow(2,(i+1)))
             block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
             self.body.add_module('block%d'%(i+1),block)
         self.tail = nn.Sequential(
-            nn.Conv2d(max(N,opt.min_nfc),opt.nc_im,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+            nn.Conv2d(max(N,opt.min_nfc),opt.ntrack,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
             nn.Tanh()
         )
     def forward(self,x,y):

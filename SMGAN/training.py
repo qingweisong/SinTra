@@ -177,6 +177,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
                     criterion = nn.MSELoss()
                     RMSE = torch.sqrt(criterion(real, z_prev))#重构数据和原始数据对应点误差的平方和的均值再开根
                     opt.noise_amp = opt.noise_amp_init*RMSE#addative noise cont weight * RMSELoss
+                    print(opt.noise_amp_init)
+                    print(opt.noise_amp)
                     z_prev = m_image(z_prev)
             else:#非第一个epoch第一次训练D
                 prev = draw_concat(Gs,Zs,reals,NoiseAmp,in_s,'rand',m_noise,m_image,opt)#假图
@@ -320,17 +322,47 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt):
 
 #初始化模型
 def init_models(opt):
-    netG = model.GeneratorConcatSkip2CleanAdd(opt).to(opt.device)
-    netG.apply(model.weights_init)
-    if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
-        netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
-    # print(netG)#打印网络结构
+    if opt.model_type == "transformer":
+        netG = model.G_transform(opt).to(opt.device)
+        netG.apply(model.weights_init)
+        if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
+            netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
+        # print(netG)#打印网络结构
 
-    netD = model.WDiscriminator(opt).to(opt.device)
-    netD.apply(model.weights_init)
-    if opt.netD != '':
-        netD.load_state_dict(torch.load(opt.netD))
-    # print(netD)#打印网络结构
+        netD = model.D_transform(opt).to(opt.device)
+        netD.apply(model.weights_init)
+        if opt.netD != '':
+            netD.load_state_dict(torch.load(opt.netD))
+        # print(netD)#打印网络结构
+    elif opt.model_type == "transformerXL":
+
+        netG = model.G_transformXL(opt).to(opt.device)
+        netG.apply(model.weights_init)
+        if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
+            netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
+        # print(netG)#打印网络结构
+
+        netD = model.D_transformXL(opt).to(opt.device)
+        netD.apply(model.weights_init)
+        if opt.netD != '':
+            netD.load_state_dict(torch.load(opt.netD))
+        # print(netD)#打印网络结构
+    elif opt.model_type == "conv":
+        netG = model.GeneratorConcatSkip2CleanAdd_init(opt).to(opt.device)
+        netG.apply(model.weights_init)
+        if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
+            netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
+        # print(netG)#打印网络结构
+
+        netD = model.WDiscriminator_init(opt).to(opt.device)
+        netD = model.D_transform(opt).to(opt.device)
+        netD.apply(model.weights_init)
+        if opt.netD != '':
+            netD.load_state_dict(torch.load(opt.netD))
+        # print(netD)#打印网络结构
+    else:
+        print("not select model type in args! maybe transformer, transformerXL, conv")
+        exit(0)
 
     return netG, netD
 
