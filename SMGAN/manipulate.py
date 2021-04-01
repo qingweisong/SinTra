@@ -261,3 +261,66 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
     # metric.write_txt()
     # denoise_metric.write_txt("denoise")
     return I_curr.detach()
+
+
+def SMGAN_generate_word(Gs, opt, num_samples=1):
+
+    lib = Lang("song")
+
+    if opt.input_dir == 'array':
+        real_ = functions.load_phrase_from_npy(opt)
+    if opt.input_dir == 'midi':
+        real_ = midi2np(opt)
+        real_ = midiArrayReshape(real_, opt)
+    if opt.input_dir == 'pianoroll':
+        real_ = functions.load_phrase_from_npz(opt)#原 5
+    if opt.input_dir == 'JSB-Chorales-dataset':
+        real_ = functions.load_phrase_from_pickle(opt, all=True)
+
+    print("Input real_ shape = ", real_.shape)
+
+    lib.addSong(real_) # for generating lib
+    print("Total words = ", lib.n_words)
+    opt.nword = lib.n_words
+    reals = []
+    reals = functions.get_reals(real_, reals, 16, [4,8,16])
+    reals_num = list(map(lambda x:lib.song2num(x), reals))
+    reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, time
+
+    if opt.mode == 'train':
+        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.input_phrase[:-4], 0)
+    else:
+        dir2save = functions.generate_dir2save(opt)
+    try:
+        os.makedirs(dir2save)
+    except OSError:
+        pass
+
+    for i in tqdm(range(0, num_samples, 1)):
+        nbar = 96
+        # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
+        din = reals_num[0][:, 0:1, 0:4]
+        din = din.reshape([1, opt.ntrack, -1])
+        in_4th = din
+        G_z = din
+        song = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
+        print("din length: ", din.shape[2])
+
+        for l in range(nbar):
+            for i, G in enumerate(Gs):
+                G_z, _ = G(G_z, draw_concat=True)
+                if i == 0:
+                    in_4th = G_z
+                    print("{}-th length: ".format(i), in_4th.shape[2])
+                if i != 2:
+                    cur_scale = 2
+                    G_z = word_upsample(G_z, cur_scale)
+            # print(G_z)
+            song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
+            G_z = in_4th
+        
+        song = song.reshape([1, opt.ntrack, opt.nbar, -1]) # [1, track, nbar, time]
+        song = lib.num2song(song[0])[None, ] # [1, track, nbar, length, pitch]
+            
+        save_image('%s/%d.png' % (dir2save, i), song.copy(), (1,1))
+        multitrack = save_midi('%s/%d.mid' % (dir2save, i), song.copy(), opt)

@@ -11,12 +11,98 @@ import math
 import matplotlib.pyplot as plt
 import wandb
 from tqdm import tqdm
+from SMGAN.utils import Lang
+import SMGAN.functions as functions
 
 wandb.init(
     project="single-musegan",
     config = {
     }
 )
+
+lib = Lang("song")
+
+def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
+    print("************** start training ****************")
+    in_s = 0#
+    num_scale = 0
+    nfc_prev = 0#
+
+    if opt.input_dir == 'array':
+        real_ = functions.load_phrase_from_npy(opt)
+    if opt.input_dir == 'midi':
+        real_ = midi2np(opt)
+        real_ = midiArrayReshape(real_, opt)
+    if opt.input_dir == 'pianoroll':
+        real_ = functions.load_phrase_from_npz(opt)#原 5
+    if opt.input_dir == 'JSB-Chorales-dataset':
+        real_ = functions.load_phrase_from_pickle(opt, all=True)
+
+    print("Input real_ shape = ", real_.shape)
+
+    lib.addSong(real_) # for generating lib
+    print("Total words = ", lib.n_words)
+    reals = functions.get_reals(real_, reals, 16, [4,8,16])
+    reals_num = list(map(lambda x:lib.song2num(x), reals))
+    reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, t
+
+    reals = reals_num
+
+    print(reals[0].shape)
+    opt.nbar = reals[0].shape[1]
+
+    while num_scale < len(reals): #opt.stop_scale + 1:#5
+        opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
+        opt.min_nfc = min(opt.min_nfc_init * pow(2, math.floor(num_scale / 4)), 128)
+
+        opt.out = functions.generate_dir2save(opt)
+        opt.outp = '%s/%d' % (opt.out, num_scale)
+        try:
+            os.makedirs(opt.outp)
+        except OSError:#上一句未执行成功就pass
+            pass
+        
+        print("************* Save real_scale **************")
+        real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
+        print("current real_scale shape is : ", end ="")
+        print(real_scale.shape)
+        merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
+        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
+        wandb.log({
+            "real [%d]"% num_scale: wandb.Image(merged)},
+            commit=False
+        )
+
+        #初始化D,G模型       打印网络结构
+        G_curr, D_curr= init_models(opt)
+        if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
+            G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
+            D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
+
+        z_curr,in_s,G_curr = train_single_scale(D_curr,G_curr, reals, Gs, Zs, in_s, NoiseAmp, opt)#训练该阶段模型并保存成netG.pth, netD.pth
+
+        G_curr = functions.reset_grads(G_curr,False)#????????
+        G_curr.eval()
+        D_curr = functions.reset_grads(D_curr,False)
+        D_curr.eval()
+
+        Gs.append(G_curr)
+        Zs.append(z_curr)
+        NoiseAmp.append(opt.noise_amp)#噪声幅值
+
+        torch.save(Zs, '%s/Zs.pth' % (opt.out))
+        torch.save(Gs, '%s/Gs.pth' % (opt.out))
+        torch.save(reals, '%s/reals.pth' % (opt.out))
+        torch.save(NoiseAmp, '%s/NoiseAmp.pth' % (opt.out))
+
+        num_scale += 1
+        nfc_prev = opt.nfc
+        del D_curr, G_curr#把上一阶段数据清空
+    return
+
+
+
+    return
 
 def train(opt, Gs, Zs, reals, NoiseAmp):
     print("************** start training ****************")
@@ -40,8 +126,20 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
     # reals = functions.creat_reals_pyramid(real, reals, opt)#一组不同尺寸的phrase真值(torch类型) cuda上
 
     # handle data
+    lib.addSong(real_) # for generating lib
+    print("Total words = ", lib.n_words)
     reals = functions.get_reals(real_, reals, 16, [4,8,16])
-    opt.nbar = reals[0].shape[2]
+    # print("==================")
+    # print(lib.pitch2tuple(reals[0]))
+    # print("==================")
+    # print(lib.pitch2tuple(real_))
+    reals_num = list(map(lambda x:lib.song2num(x), reals))
+    reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, t
+
+    reals = reals_num
+
+    print(reals[0].shape)
+    opt.nbar = reals[0].shape[1]
 
     # scale = [2, 4]
     # srcs = []
@@ -65,7 +163,7 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
             pass
         
         print("************* Save real_scale **************")
-        real_scale = functions.convert_image_np(reals[num_scale]) # to np
+        real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
         print("current real_scale shape is : ", end ="")
         print(real_scale.shape)
         merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
@@ -74,7 +172,6 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
             "real [%d]"% num_scale: wandb.Image(merged)},
             commit=False
         )
-
 
         #初始化D,G模型       打印网络结构
         G_curr, D_curr= init_models(opt)
@@ -105,19 +202,19 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
 
 
 def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=None):
-    real = reals[len(Gs)]#len(Gs)=0  最小尺度的真值 5维   （1, track, 4, h, w）
+    real = reals[len(Gs)]#len(Gs)=0  最小尺度的真值 3维   （track, bar, h）
     shape = real.shape
-    real = real.reshape(shape[0], shape[1], shape[2]*shape[3], shape[4])#(1, track, 4*h, w）
+    real = real.reshape(1, shape[0], shape[1]*shape[2])#(1, track, bar*h）
 
 
-    opt.nzx = real.shape[2]#4 * h
-    opt.nzy = real.shape[3]
+    opt.nzx = real.shape[2]#bar * h
+    # opt.nzy = 1
     pad_noise = int(((opt.ker_size - 1) * opt.num_layer) / 2)#5？？
     pad_image = int(((opt.ker_size - 1) * opt.num_layer) / 2)#5
     m_noise = nn.ZeroPad2d(0)#上下左右pad5行
     m_image = nn.ZeroPad2d(0)
 
-    fixed_z = functions.generate_noise([real.shape[1],opt.nzx,opt.nzy], num_samp = opt.nsample, device = opt.device)#大小为(1, track, 4*h, w)的噪声矩阵
+    fixed_z = functions.generate_noise([real.shape[1],opt.nzx], num_samp = opt.nsample, device = opt.device)#大小为(1, track, 4*h, w)的噪声矩阵
     z_opt = torch.full(fixed_z.shape, 0, device = opt.device)#全0矩阵  (b, c, 4*h, w)
     z_opt = m_noise(z_opt)#上下左右pad5行
     
@@ -139,12 +236,12 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         if (Gs == []):#只有第一阶段有z_opt   生成重构图的噪声
             ########################################！！！！！！！！！！第一阶段噪声每track相同
-            z_opt = functions.generate_noise([1,opt.nzx,opt.nzy], device=opt.device)#(1,1,4*h,w)
-            z_opt = m_noise(z_opt.expand(1,opt.ntrack,opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
-            noise_ = functions.generate_noise([1,opt.nzx,opt.nzy], device=opt.device)#(1,1,4*h,w)
-            noise_ = m_noise(noise_.expand(1,opt.ntrack,opt.nzx,opt.nzy))#(1,5,4*h+10,w+10)
+            z_opt = functions.generate_noise([1,opt.nzx], device=opt.device)#(1,1,4*h,w)
+            z_opt = m_noise(z_opt.expand(1,opt.ntrack,opt.nzx))#(1,5,4*h+10,w+10)
+            noise_ = functions.generate_noise([1,opt.nzx], device=opt.device)#(1,1,4*h,w)
+            noise_ = m_noise(noise_.expand(1,opt.ntrack,opt.nzx))#(1,5,4*h+10,w+10)
         else:#其他阶段
-            noise_ = functions.generate_noise([opt.ntrack,opt.nzx,opt.nzy], num_samp = opt.nsample, device=opt.device)
+            noise_ = functions.generate_noise([opt.ntrack,opt.nzx], num_samp = opt.nsample, device=opt.device)
             noise_ = m_noise(noise_)
 
         ############################
@@ -161,11 +258,10 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
             if (j==0) & (epoch == 0):#第一个epoch第一次训练D
                 if (Gs == []):#第一阶段 prev指上一阶段的输出
-                    prev = torch.full([1,opt.ntrack,opt.nzx,opt.nzy], 0, device=opt.device)
+                    prev = torch.full([1,opt.ntrack,opt.nzx], 0, device=opt.device)
                     in_s = prev
                     prev = m_image(prev)
-                    #print(prev.shape)
-                    z_prev = torch.full([1,opt.ntrack,opt.nzx,opt.nzy], 0, device=opt.device)
+                    z_prev = torch.full([1,opt.ntrack,opt.nzx], 0, device=opt.device)
                     z_prev = m_noise(z_prev)
                     opt.noise_amp = 1
                 else:#其他阶段
@@ -190,7 +286,10 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             else:
                 noise = opt.noise_amp*noise_ + prev#噪*+ fake
             
+            print("!!!!!!!", noise.shape)
+            print("!!!!!!!", prev.shape)
             fake, _ = netG(noise.detach(),prev, None)
+            print("???????", fake.shape)
             output, _ = netD(fake.detach(), None)
             errD_fake = output.mean()
             errD_fake.backward(retain_graph=True)
@@ -216,9 +315,14 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             errG = -output.mean()
             errG.backward(retain_graph=True)
             if opt.alpha!= 0:#reconstruction loss weight=10
-                loss = nn.MSELoss()#recloss
+                loss = nn.NLLLoss() # out is [N, class, d1] tgt is [N, d1]
                 Z_opt = opt.noise_amp*z_opt+z_prev#该阶段重构输入
                 rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev)[0],real)
+
+                # loss = nn.MSELoss()#recloss
+                # Z_opt = opt.noise_amp*z_opt+z_prev#该阶段重构输入
+                # rec_loss = opt.alpha*loss(netG(Z_opt.detach(),z_prev)[0],real)
+
                 rec_loss.backward(retain_graph=True)
                 rec_loss = rec_loss.detach()
             optimizerG.step()
@@ -227,9 +331,19 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         z_opt2plot.append(rec_loss)
 
         #4tendor->5np
-        fake = dim_transformation_to_5(fake.detach(), opt).numpy()
+        def cvt_5d(fake):
+            fake = fake.detach().cpu().numpy() # 1, track, bar*time
+            fake = fake[0, :, :]
+            fake = fake.reshape(fake.shape[0], opt.nbar, -1)
+            fake = lib.num2song(fake)[None, :, :, :, :]
+            return fake
+        fake = cvt_5d(fake)
+        fake = cvt_5d(fake)
+        fake = cvt_5d(fake)
+        # fake = dim_transformation_to_5(fake.detach(), opt).numpy()
         rec  = netG(Z_opt.detach(), z_prev)[0].detach()
-        rec = dim_transformation_to_5(rec, opt).numpy()
+        rec = cvt_5d(rec)
+        # rec = dim_transformation_to_5(rec, opt).numpy()
 
         #bool类型的矩阵   round bernoulli
         round = fake > 0.5

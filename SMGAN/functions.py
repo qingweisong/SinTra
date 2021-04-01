@@ -17,6 +17,7 @@ import imageio
 import pypianoroll
 import time
 import pickle
+from SMGAN.utils import Lang
 
 cur_time_str = "_" + "-".join(map(str, time.localtime(time.time())[0:6]))
 
@@ -28,6 +29,7 @@ def load_phrase_from_npy(opt):#np.load()进来就是数组
 
     return data
 
+
 def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
     # [track, all_bars, time, pitch]
     # return [ [1, track, ... ], ]
@@ -37,23 +39,35 @@ def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
 
     for i in down_scale:
         tmp = song[:, :, ::int(i), :]
-        tmp = tmp[None, :, :, :, :]
-        reals.append(np2torch(tmp))
+        reals.append(tmp)
     return reals
 
 
-def batchify(song, length):
-    # [track, all_bars, time, pitch]
-    # return [N, track, all_bars, time, pitch]
+def batchify(song, nth=4):
+    # [1, track, bar*time]
+    # return [-1, 1, track, nth*4]
     print(song.shape)
-    print(length)
-    track, all_bars, time, pitch = song.shape
-    src = song.reshape([-1, track, length, time, pitch])
-    tgt = src[1:, :, :, :, :]
-    print(src[0:1].shape)
-    # return src[0:-1, :, :, :, :], tgt
-    return np2torch(src[0:1, :, :, :, :]), np2torch(tgt[0:1, :, :, :, :])
+    _, track, time = song.shape
+    src = song.reshape([1, track, -1, nth])
+    src = src.permute(2, 0, 1, 3) # N, 1, track, nth
+    return src
 
+def get_batch(data, i):
+    assert i < data.shape[0]
+    src = data[i, :, :, :]
+    tgt = data[i+1, :, :, :]
+    return src, tgt 
+
+def word_upsample(src, scale=2):
+    """
+    src: [1, track, length]
+    """
+    _, track, length = src.shape
+    new = torch.zeros([1, track, length*scale])
+    new[:, :, 0::scale] = src
+    for i in range(1, scale):
+        new[:, :, i::scale] = new[:, :, 0::scale]
+    return new # [1, track, length*scale]
 
 def load_phrase_from_pickle(opt, all=False):
     # 1 bar has 16 step
@@ -142,10 +156,10 @@ def creat_reals_pyramid(real,reals,opt):
         reals.append(curr_real)#从小向大append
     return reals
 
-def save_networks(netG, netD, z, opt):
+def save_networks(netG, netD, opt):
     torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outp))
     torch.save(netD.state_dict(), '%s/netD.pth' % (opt.outp))
-    torch.save(z, '%s/z_opt.pth' % (opt.outp))
+    # torch.save(z, '%s/z_opt.pth' % (opt.outp))
 
 def adjust_scales2phrase(real_,opt):#real_ (1, 4, 96, 84, 8)->(1,track, 4, 96, 128)
     #原->min次数 8
@@ -186,6 +200,20 @@ def generate_dir2save(opt, time=None):
             opt.scale_v, 
             opt.scale_h)
     return dir2save
+
+
+def load_trained_Gs(opt, time=None):
+    mode = opt.mode
+    opt.mode = 'train'
+    dir = generate_dir2save(opt, time)
+    print(dir)
+    if(os.path.exists(dir)):
+        Gs = torch.load('%s/Gs.pth' % dir)
+    else:
+        print('no appropriate trained model is exist, please train first')
+        exit(0)
+    opt.mode = mode
+    return Gs
 
 
 def load_trained_pyramid(opt, mode_='train', time=None):
@@ -321,7 +349,7 @@ def np2torch(x):#输给pytorch的tensor是float类型 的(1, 4, h, w, track)
     x = torch.from_numpy(x)
     if (torch.cuda.is_available()):
         x = x.to(torch.device('cuda'))
-    x = x.type(torch.cuda.FloatTensor)
+    # x = x.type(torch.cuda.LongTensor)
     #x = norm(x)
     return x
 

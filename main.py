@@ -1,6 +1,7 @@
 from config import get_arguments
 from SMGAN.manipulate import *
-from SMGAN.training import *
+# from SMGAN.training import *
+from SMGAN.training_noGAN import *
 import SMGAN.functions as functions
 import numpy as np
 from SMGAN.image_io import *
@@ -78,10 +79,10 @@ if __name__ == '__main__':
 
     print('Training set size: %d' % real_.shape[0])
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
-    train(opt, Gs, Zs, reals, NoiseAmp)
-    SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt)
+    trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
+    SMGAN_generate_word(Gs, opt)
 
-    scale_v = 2
-    opt.gen_start_scale = 0
-    in_s = functions.generate_in2coarsest(reals, scale_v, 1,opt)
-    SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, in_s, scale_v=scale_v, scale_h=1)
+    # scale_v = 2
+    # opt.gen_start_scale = 0
+    # in_s = functions.generate_in2coarsest(reals, scale_v, 1,opt)
+    # SMGAN_generate(Gs, Zs, reals, NoiseAmp, opt, in_s, scale_v=scale_v, scale_h=1)

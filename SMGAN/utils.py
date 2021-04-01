@@ -6,6 +6,98 @@ import torch.nn.functional as F
 import torchvision
 # from custom.config import config
 
+class Lang:
+    def __init__(self, name):
+        self.name = name
+        self.word2index = {}
+        self.word2count = {}
+        self.index2word = {}
+        self.n_words = 0
+
+    def pitch2tuple(self, song):
+        """
+        song: [track, all_bar, time, pitch]
+        return [track, all_bar, time]
+
+        each elemnt is a tuple, such as (12, 60, 78)
+        """
+        res = np.zeros_like(song[:, :, :, 0], dtype=np.object)
+        i, j, k= res.shape
+        for ii in range(i):
+            for jj in range(j):
+                for kk in range(k):
+                    tmp = song[ii, jj, kk, :]
+                    tmp = tuple( np.nonzero(tmp)[0].reshape(-1) )
+                    res[ii, jj, kk] = tmp
+        return res
+
+    def tuple2pitch(self, tup):
+        """
+        tup: [track, all_bar, time], each element is tuple such as (43, 23, 60)
+        return [track, all_bar, time, pitch], the pitch range is 0~127
+        """
+        res = np.zeros(list(tup.shape) + [128], dtype=np.float)
+        i, j, k = tup.shape
+        for ii in range(i):
+            for jj in range(j):
+                for kk in range(k):
+                    tmp = list(tup[ii, jj, kk])
+                    pitch = np.array([0] * 128)
+                    pitch[tmp] = 1
+                    res[ii, jj, kk, :] = pitch
+        return res
+    
+    def song2num(self, song):
+        """
+        song: [track, bar, time, pitch]
+        """
+        tup = self.pitch2tuple(song)
+        res = np.zeros_like(tup, dtype=np.float)
+        i, j, k = tup.shape
+        for ii in range(i):
+            for jj in range(j):
+                for kk in range(k):
+                    # print(tup[ii, jj, kk])
+                    res[ii, jj, kk] = self.word2index[tup[ii, jj, kk]]
+        return res
+
+    def num2song(self, num):
+        """
+        num: [track, bar, time]
+
+        each element is like 23
+        """
+        res = np.zeros_like(num, dtype=np.object)
+        i, j, k = num.shape
+        for ii in range(i):
+            for jj in range(j):
+                for kk in range(k):
+                    # print(num[ii, jj, kk])
+                    res[ii, jj, kk] = self.index2word[num[ii, jj, kk].item()]
+        res = self.tuple2pitch(res)
+        return res # [track, all_bar, time, pitch]
+ 
+    def addSong(self, song):
+        """
+        song: [track, bar, time, pitch]
+        """
+        tup = self.pitch2tuple(song)
+        i, j, k = tup.shape
+        for ii in range(i):
+            for jj in range(j):
+                for kk in range(k):
+                    tmp = tup[ii, jj, kk]
+                    # print(tmp)
+                    self.addWord(tmp)
+
+    def addWord(self, word):
+        if word not in self.word2index:
+            self.word2index[word] = self.n_words
+            self.word2count[word] = 1
+            self.index2word[self.n_words] = word
+            self.n_words += 1
+        else:
+            self.word2count[word] += 1
 
 def find_files_by_extensions(root, exts=[]):
     def _has_ext(name):

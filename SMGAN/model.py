@@ -77,6 +77,7 @@ class TransformerBlock(nn.Module):
     def __init__(
             self,
             track,
+            nword,
             ninp = 32,
             nhead = 8,
             nhid = 512,
@@ -87,6 +88,7 @@ class TransformerBlock(nn.Module):
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.src_mask = None
+        self.track = track
         self.ninp = ninp
 
         self.sine_position_encoder = PositionalEncoding(ninp)
@@ -94,20 +96,14 @@ class TransformerBlock(nn.Module):
         # embeding
         # 1st: pitch -> 64 -> 32 -> 1
         # 2rd: track -> feature
-        self.en_track1 = nn.Linear(track, 16)
-        self.en_track2 = nn.Linear(16, 1)
-        self.en_pitch = nn.Linear(128, ninp)
-        self.embeding = nn.Conv2d(ninp, ninp, 1) # track 2 feature
+        self.embeding = nn.Embedding(nword, ninp)
 
         # transformer
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
 
         # deocder
-        self.decoder = nn.Conv2d(ninp, 128, 1)
-
-        self.de_track1 = nn.Linear(1, 16)
-        self.de_track2 = nn.Linear(16, track)
+        self.decoder = nn.Linear(ninp, nword)
 
         # self.init_weights()
 
@@ -134,62 +130,62 @@ class TransformerBlock(nn.Module):
     #     output = self.decoder(output)
     #     return output
 
-    def forward(self, img):
-        img = self.en_pitch(img)
-        img = img.permute(0, 3, 2, 1).contiguous()   # 1, pitch, time, track
+    def forward(self, img, draw_concat=False): # input: 1, track, length
+        img = img.long().cuda()
+        img = img.permute(0, 2, 1).reshape(1, -1) # 1, length*track
 
-        src = self.en_track1(img) # pitch, time, 128 -> pitch, time, 64
-        src = self.en_track2(src) # pitch, time,  64 -> pitch, time, 32
-        src = self.embeding(src)   # 1, feature, time , 1
+        seq_len = img.shape[1]
 
-        originShape = src.shape
-        H, W = originShape[-2:]
-        if self.src_mask is None or self.src_mask.size(0) != H*W:
-            device = src.device
-            # mask = self._generate_square_subsequent_mask(H*W).to(device)
-            mask = self._generate_square_subsequent_mask(H).to(device)
+        if self.src_mask is None or self.src_mask.size(0) != seq_len:
+            device = img.device
+            mask = self._generate_square_subsequent_mask(seq_len)#.to(device)
+            mask = mask.to(device)
             self.src_mask = mask
 
-        src = src[0]  #feature, time, 1
-        src = src.permute(1, 2, 0) # Length, N , Features
+        src = self.embeding(img).permute(1, 0, 2) # length, 1, feature
 
+        src = src * math.sqrt(self.ninp)
         output = self.transformer_encoder(
             self.sine_position_encoder(src),
             self.src_mask
-        ).permute(2, 0, 1).contiguous()
+        ) # length, 1, feature
 
-        output = output.reshape(originShape)
 
-        output = self.decoder(output)
-        output = self.de_track1(output)
-        output = self.de_track2(output)
+        output = self.decoder(output) # length(length*track), 1, nword
 
-        output = output.permute(0, 3, 2, 1)
+        if draw_concat == True:
+            top1 = torch.zeros([output.shape[0], output.shape[1]]) # (time*track), 1
+            top1 = output.argmax(dim=2).permute(1, 0) #  1, length*track
+            top1 = top1.reshape([1, -1, self.track]) # 1, length, track
+            top1 = top1.permute(0, 2, 1) # 1, track, length
+            return top1 
+        
+        output = output.permute(1, 2, 0) # 1, nword, length
+        output = output.reshape(output.shape[0], output.shape[1], -1, self.track)
+        output = output.permute(0, 1, 3, 2)
 
-        return output
+        return output # 1, nword, track, length
 
 
 # =================== Transformer END =====================================
 class D_transform(nn.Module):
     def __init__(self, opt):
         super(D_transform, self).__init__()
-        self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerBlock(opt.ntrack, opt.nword)
     
-    def forward(self,x, mems=None):
-        x = self.transformer(x)
+    def forward(self,x, mems=None, draw_concat=False):
+        x = self.transformer(x, draw_concat)
         return x, None
 
 
 class G_transform(nn.Module):
     def __init__(self, opt):
         super(G_transform, self).__init__()
-        self.transformer = TransformerBlock(opt.ntrack)
+        self.transformer = TransformerBlock(opt.ntrack, opt.nword)
     
-    def forward(self, x, y, mems=None):
-        x = self.transformer(x)
-        ind = int((y.shape[2]-x.shape[2])/2)
-        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]
-        return x+y, None
+    def forward(self, x, y=None, mems=None, draw_concat=False):
+        x = self.transformer(x, draw_concat)
+        return x, None
 
 
 class D_transformXL(nn.Module):
