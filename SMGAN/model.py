@@ -91,7 +91,7 @@ class TransformerBlock(nn.Module):
         self.track = track
         self.ninp = ninp
 
-        self.sine_position_encoder = PositionalEncoding(ninp)
+        self.sine_position_encoder = PositionalEncoding(ninp, dropout=dropout)
 
         # embeding
         # 1st: pitch -> 64 -> 32 -> 1
@@ -118,17 +118,16 @@ class TransformerBlock(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    # def forward(self, src):
-    #     if self.src_mask is None or self.src_mask.size(0) != len(src):
-    #         device = src.device
-    #         mask = self._generate_square_subsequent_mask(len(src)).to(device)
-    #         self.src_mask = mask
+    def topP_sampling(self, x, p=0.8): #[length, 1, nword]
+        xp = F.softmax(x, dim=-1)
+        topP, indices = torch.sort(x, dim=-1, descending=True)
+        cumsum = torch.cumsum(topP, dim=-1)
+        mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+        minP, indices = torch.min(mask, dim=-1, keepdim=True)
+        valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+        sample = torch.distributions.Categorical(valid_p).sample()
+        return sample
 
-    #     src = self.encoder(src) * math.sqrt(self.ninp)
-    #     src = self.pos_encoder(src)
-    #     output = self.transformer_encoder(src, self.src_mask)
-    #     output = self.decoder(output)
-    #     return output
 
     def forward(self, img, draw_concat=False): # input: 1, track, length
         img = img.long().cuda()
@@ -159,6 +158,12 @@ class TransformerBlock(nn.Module):
             top1 = top1.reshape([1, -1, self.track]) # 1, length, track
             top1 = top1.permute(0, 2, 1) # 1, track, length
             return top1 
+        elif self.training == False:
+            print("in eval mode")
+            sample = self.topP_sampling(output).permute(1, 0) # 1, length*track
+            sample = sample.reshape([1, -1, self.track]) # 1, length, track
+            sample = sample.permute(0, 2, 1) # 1, track, length
+            return sample
         
         output = output.permute(1, 2, 0) # 1, nword, length
         output = output.reshape(output.shape[0], output.shape[1], -1, self.track)

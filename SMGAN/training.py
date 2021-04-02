@@ -32,7 +32,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
         real_ = functions.load_phrase_from_npy(opt)
     if opt.input_dir == 'midi':
         real_ = midi2np(opt)
-        real_ = midiArrayReshape(real_, opt)
+        real_ = midiArrayReshape(real_, opt, all=True)
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
@@ -114,7 +114,7 @@ def train(opt, Gs, Zs, reals, NoiseAmp):
         real_ = functions.load_phrase_from_npy(opt)
     if opt.input_dir == 'midi':
         real_ = midi2np(opt)
-        real_ = midiArrayReshape(real_, opt)
+        real_ = midiArrayReshape(real_, opt, all=True)
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':

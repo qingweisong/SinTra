@@ -86,9 +86,9 @@ def load_phrase_from_pickle(opt, all=False):
     opt.vel_min = [60]
 
     if all == False:
-        song = song.reshape([1, -1, 4, 16, 128])
-        song = song.transpose(1, 0, 2, 3, 4)
-        return song[1:2, :, :, :, :]
+        song = song.reshape([1, -1, 4, 16, 128]) # [track, phrase, 4, time, pitch]
+        song = song.transpose(1, 0, 2, 3, 4) # [phrase, track, 4, time, pitch]
+        return song[1:2, :, :, :, :] 
     else:
         # [track, all_bars, time, pitch]
         song = song.reshape([1, -1, 16, 128])

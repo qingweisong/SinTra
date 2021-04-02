@@ -263,7 +263,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
     return I_curr.detach()
 
 
-def SMGAN_generate_word(Gs, opt, num_samples=1):
+def SMGAN_generate_word(Gs, opt, num_samples=10):
 
     lib = Lang("song")
 
@@ -296,9 +296,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=1):
     except OSError:
         pass
 
-    for i in tqdm(range(0, num_samples, 1)):
-        nbar = 96
-        # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
+    for ii in tqdm(range(0, num_samples, 1)):
+        nbar = 48
+        # din = torch.randint(opt.nword, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
         din = reals_num[0][:, 0:1, 0:4]
         din = din.reshape([1, opt.ntrack, -1])
         in_4th = din
@@ -308,7 +308,8 @@ def SMGAN_generate_word(Gs, opt, num_samples=1):
 
         for l in range(nbar):
             for i, G in enumerate(Gs):
-                G_z, _ = G(G_z, draw_concat=True)
+                G.eval()
+                G_z, _ = G(G_z, draw_concat=False)
                 if i == 0:
                     in_4th = G_z
                     print("{}-th length: ".format(i), in_4th.shape[2])
@@ -322,5 +323,5 @@ def SMGAN_generate_word(Gs, opt, num_samples=1):
         song = song.reshape([1, opt.ntrack, opt.nbar, -1]) # [1, track, nbar, time]
         song = lib.num2song(song[0])[None, ] # [1, track, nbar, length, pitch]
             
-        save_image('%s/%d.png' % (dir2save, i), song.copy(), (1,1))
-        multitrack = save_midi('%s/%d.mid' % (dir2save, i), song.copy(), opt)
+        save_image('%s/%d.png' % (dir2save, ii), song.copy(), (1,1))
+        multitrack = save_midi('%s/%d.mid' % (dir2save, ii), song.copy(), opt)
