@@ -50,6 +50,8 @@ class Lang:
     def song2num(self, song):
         """
         song: [track, bar, time, pitch]
+
+        return [track, all_bar, time]
         """
         tup = self.pitch2tuple(song)
         res = np.zeros_like(tup, dtype=np.float)

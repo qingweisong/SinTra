@@ -271,7 +271,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
         real_ = functions.load_phrase_from_npy(opt)
     if opt.input_dir == 'midi':
         real_ = midi2np(opt)
-        real_ = midiArrayReshape(real_, opt)
+        real_ = midiArrayReshape(real_, opt, all=True)
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
@@ -280,7 +280,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
     print("Input real_ shape = ", real_.shape)
 
     lib.addSong(real_) # for generating lib
-    print("Total words = ", lib.n_words)
+    print(">>>>>>> Total words = ", lib.n_words)
     opt.nword = lib.n_words
     reals = []
     reals = functions.get_reals(real_, reals, 16, [4,8,16])
@@ -299,8 +299,8 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
     for ii in tqdm(range(0, num_samples, 1)):
         nbar = 48
         # din = torch.randint(opt.nword, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
-        din = reals_num[0][:, 0:1, 0:4]
-        din = din.reshape([1, opt.ntrack, -1])
+        din = reals_num[0][:, 0:1, 0:4] # [track, one_bar, time]
+        din = din.reshape([1, opt.ntrack, -1]) # [1, track, length]
         in_4th = din
         G_z = din
         song = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
@@ -312,14 +312,13 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
                 G_z, _ = G(G_z, draw_concat=False)
                 if i == 0:
                     in_4th = G_z
-                    print("{}-th length: ".format(i), in_4th.shape[2])
+                    # print("{}-th length: ".format(i), in_4th.shape[2])
                 if i != 2:
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale)
-            # print(G_z)
             song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
             G_z = in_4th
-        
+
         song = song.reshape([1, opt.ntrack, opt.nbar, -1]) # [1, track, nbar, time]
         song = lib.num2song(song[0])[None, ] # [1, track, nbar, length, pitch]
             

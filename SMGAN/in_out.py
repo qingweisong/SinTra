@@ -80,7 +80,7 @@ def midiArrayReshape(array, opt, all=False):
     assert len(array.shape) == 3, "input dim isn't equal to 3 (tracks, pitch, time)"
     shape = array.shape
     #一小节2s  fs每秒采样次数
-    data = array.reshape((shape[0], shape[1], -1, opt.nbar, int(opt.nbar*opt.fs*0.5)))#(6, 128, 31, 4, 96) [track, pitch, phrase, 4, time]
+    data = array.reshape((shape[0], shape[1], -1, 4, int(4*opt.fs*0.5)))#(6, 128, 31, 4, 96) [track, pitch, phrase, 4, time]
     data = data.transpose(2, 0, 3, 4, 1) # [phrase, track, 4, time, pitch]
     if all==False:
         return data[0:1, :, :, :, :]

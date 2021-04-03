@@ -93,6 +93,12 @@ class TransformerBlock(nn.Module):
 
         self.sine_position_encoder = PositionalEncoding(ninp, dropout=dropout)
 
+        # handle track dim
+        self.track_conv1 = nn.Conv2d(track, 16, 1)
+        self.track_conv2 = nn.Conv2d(16, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 16, 1)
+        self.track_deconv2 = nn.Conv2d(16, track, 1)
+
         # embeding
         # 1st: pitch -> 64 -> 32 -> 1
         # 2rd: track -> feature
@@ -104,6 +110,7 @@ class TransformerBlock(nn.Module):
 
         # deocder
         self.decoder = nn.Linear(ninp, nword)
+        self.decoders = nn.ModuleList([nn.Linear(ninp, nword) for i in range(track)])
 
         # self.init_weights()
 
@@ -118,22 +125,39 @@ class TransformerBlock(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def topP_sampling(self, x, p=0.8): #[length, 1, nword]
-        xp = F.softmax(x, dim=-1)
+    # def topP_sampling(self, x, p=0.8): #[length, 1, nword]
+    #     xp = F.softmax(x, dim=-1)
+    #     topP, indices = torch.sort(x, dim=-1, descending=True)
+    #     cumsum = torch.cumsum(topP, dim=-1)
+    #     mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+    #     minP, indices = torch.min(mask, dim=-1, keepdim=True)
+    #     valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+    #     sample = torch.distributions.Categorical(valid_p).sample()
+    #     return sample
+
+    def topP_sampling(self, x, p=0.8): # 1, track, length, nword
+        xp = F.softmax(x, dim=-1) # 1, track, length, nword
         topP, indices = torch.sort(x, dim=-1, descending=True)
         cumsum = torch.cumsum(topP, dim=-1)
         mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
         minP, indices = torch.min(mask, dim=-1, keepdim=True)
         valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
         sample = torch.distributions.Categorical(valid_p).sample()
-        return sample
+        return sample # 1, track, length
 
 
     def forward(self, img, draw_concat=False): # input: 1, track, length
-        img = img.long().cuda()
-        img = img.permute(0, 2, 1).reshape(1, -1) # 1, length*track
 
-        seq_len = img.shape[1]
+        img = img.long().cuda() # 1, track, length
+
+        src = self.embeding(img) # 1, track, length, feature
+
+        src = self.track_conv1(src) # 1, 16, length, feature
+        src = self.track_conv2(src) # 1, 1, length, feature
+        src = src[0, :, :, :] # 1, length, feature
+        src = src.permute(1, 0, 2) # length, 1, feature
+
+        seq_len = src.shape[0]
 
         if self.src_mask is None or self.src_mask.size(0) != seq_len:
             device = img.device
@@ -141,33 +165,49 @@ class TransformerBlock(nn.Module):
             mask = mask.to(device)
             self.src_mask = mask
 
-        src = self.embeding(img).permute(1, 0, 2) # length, 1, feature
-
         src = src * math.sqrt(self.ninp)
         output = self.transformer_encoder(
             self.sine_position_encoder(src),
             self.src_mask
         ) # length, 1, feature
+        output = output.permute(1, 0, 2) # 1, length, feature
+        output = output[:, None, :, :] # 1, 1, length, feature
+        output = self.track_deconv1(output) # 1, 16, length, feature
+        output = self.track_deconv2(output) # 1, track, length, feature
 
+        outputs = []
+        for i in range(self.track):
+            a_track = self.decoders[i](output[:, i, :, :]) # 1, length, nword
+            a_track = a_track[:, None, :, :] # 1, 1, length, nword
+            outputs.append(a_track)
 
-        output = self.decoder(output) # length(length*track), 1, nword
+        output = torch.cat(outputs, dim=1) # 1, track, length, nword
+
+        # output = self.decoder(output) # length(length*track), 1, nword
 
         if draw_concat == True:
-            top1 = torch.zeros([output.shape[0], output.shape[1]]) # (time*track), 1
-            top1 = output.argmax(dim=2).permute(1, 0) #  1, length*track
-            top1 = top1.reshape([1, -1, self.track]) # 1, length, track
-            top1 = top1.permute(0, 2, 1) # 1, track, length
+            # top1 = torch.zeros([output.shape[0], output.shape[1]]) # (time*track), 1
+            # top1 = output.argmax(dim=2).permute(1, 0) #  1, length*track
+            # top1 = top1.reshape([1, -1, self.track]) # 1, length, track
+            # top1 = top1.permute(0, 2, 1) # 1, track, length
+
+            top1 = output # 1, track, length, nword
+            top1 = top1.argmax(dim=3) # 1, track, length
             return top1 
         elif self.training == False:
-            print("in eval mode")
-            sample = self.topP_sampling(output).permute(1, 0) # 1, length*track
-            sample = sample.reshape([1, -1, self.track]) # 1, length, track
-            sample = sample.permute(0, 2, 1) # 1, track, length
+            # print("in eval mode")
+            # sample = self.topP_sampling(output).permute(1, 0) # 1, length*track
+            # sample = sample.reshape([1, -1, self.track]) # 1, length, track
+            # sample = sample.permute(0, 2, 1) # 1, track, length
+
+            sample = self.topP_sampling(output) # 1, track, length
             return sample
         
-        output = output.permute(1, 2, 0) # 1, nword, length
-        output = output.reshape(output.shape[0], output.shape[1], -1, self.track)
-        output = output.permute(0, 1, 3, 2)
+        # output = output.permute(1, 2, 0) # 1, nword, length
+        # output = output.reshape(output.shape[0], output.shape[1], -1, self.track)
+        # output = output.permute(0, 1, 3, 2)
+
+        output = output.permute(0, 3, 1, 2) # 1, nword, track, length
 
         return output # 1, nword, track, length
 

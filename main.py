@@ -80,6 +80,7 @@ if __name__ == '__main__':
     print('Training set size: %d' % real_.shape[0])
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
     trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
+    print(">>>>>>>>>>>>>>>> train completely")
     SMGAN_generate_word(Gs, opt)
 
     # scale_v = 2
