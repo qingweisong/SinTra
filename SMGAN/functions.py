@@ -58,16 +58,38 @@ def get_batch(data, i):
     tgt = data[i+1, :, :, :]
     return src, tgt 
 
-def word_upsample(src, scale=2):
+def word_upsample(src, scale, opt):
     """
     src: [1, track, length]
     """
     _, track, length = src.shape
-    new = torch.zeros([1, track, length*scale])
+    new = torch.zeros([1, track, length*scale], device=opt.device)
     new[:, :, 0::scale] = src
     for i in range(1, scale):
         new[:, :, i::scale] = new[:, :, 0::scale]
     return new # [1, track, length*scale]
+
+def word_upsample_feature(src, scale, opt):
+    """
+    src:    [1, track, length, ninp]
+    """
+    _, track, length, ninp = src.shape
+    new = torch.zeros([1, track, length*scale, ninp], device=opt.device)
+    new[:, :, 0::scale, :] = src
+    for i in range(1, scale):
+        new[:, :, i::scale, :] = new[:, :, 0::scale, :]
+    return new # [1, track, length*scale, ninp]
+
+def word_upsample_nword(src, scale, opt):
+    """
+    src:    [1, nword, track, length]
+    """
+    _, nword, track, length = src.shape
+    new = torch.zeros([1, nword, track, length*scale], device=opt.device)
+    new[:, :, :, 0::scale] = src
+    for i in range(1, scale):
+        new[:, :, :, i::scale] = new[:, :, :, 0::scale]
+    return new # [1, track, length*scale, ninp]
 
 def load_phrase_from_pickle(opt, all=False):
     # 1 bar has 16 step
@@ -156,10 +178,13 @@ def creat_reals_pyramid(real,reals,opt):
         reals.append(curr_real)#从小向大append
     return reals
 
-def save_networks(netG, netD, opt):
-    torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outp))
-    torch.save(netD.state_dict(), '%s/netD.pth' % (opt.outp))
-    # torch.save(z, '%s/z_opt.pth' % (opt.outp))
+def save_networks(netG=None, netD=None, z=None, opt=None):
+    if netG != None:
+        torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outp))
+    if netD != None:
+        torch.save(netD.state_dict(), '%s/netD.pth' % (opt.outp))
+    if z != None:
+        torch.save(z, '%s/z_opt.pth' % (opt.outp))
 
 def adjust_scales2phrase(real_,opt):#real_ (1, 4, 96, 84, 8)->(1,track, 4, 96, 128)
     #原->min次数 8
@@ -277,6 +302,10 @@ def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
         noise = torch.randn(num_samp, size[0], size[1], size[2], device=device)
     return noise
 
+def my_generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
+    if type == 'gaussian':#round()四舍五入
+        noise = torch.randn(size, device=device) #(1, 5, 4*96, 84)
+    return noise
 
 
 
@@ -299,6 +328,8 @@ def calc_gradient_penalty(netD, real_data, fake_data, LAMBDA, device):
     alpha = alpha.expand(real_data.size())
     alpha = alpha.to(device)#cuda() #gpu) #if use_cuda else alpha
 
+    print(real_data.shape)
+    print(fake_data.shape)
     interpolates = alpha * real_data + ((1 - alpha) * fake_data)
 
 

@@ -24,7 +24,7 @@ default:
 run: train
 
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 5000
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000
 
 train_pickle: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000

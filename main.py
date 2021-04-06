@@ -2,6 +2,7 @@ from config import get_arguments
 from SMGAN.manipulate import *
 # from SMGAN.training import *
 from SMGAN.training_noGAN import *
+from SMGAN.training_GAN import *
 import SMGAN.functions as functions
 import numpy as np
 from SMGAN.image_io import *
@@ -32,6 +33,7 @@ if __name__ == '__main__':
 
 
     Gs = []
+    Ds = []
     Zs = []
     reals = []
     NoiseAmp = []#?
@@ -54,6 +56,7 @@ if __name__ == '__main__':
     opt.ntrack = real_.shape[1]
     opt.npitch = real_.shape[4]
     opt.tempo = 120
+    opt.noise_ninp = 64
 
     print("The num of instruments = %d" % opt.ntrack)
     print("The num of pitch = %d" % opt.npitch)
@@ -79,7 +82,8 @@ if __name__ == '__main__':
 
     print('Training set size: %d' % real_.shape[0])
     functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
-    trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
+    # trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
+    trainWithGAN(opt, Gs, Ds, Zs, reals, NoiseAmp)
     print(">>>>>>>>>>>>>>>> train completely")
     SMGAN_generate_word(Gs, opt)
 

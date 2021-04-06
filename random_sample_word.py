@@ -46,6 +46,7 @@ if __name__ == '__main__':
         opt.ntrack = real_.shape[1]
         opt.npitch = real_.shape[4]
         opt.tempo = 120
+        opt.noise_ninp = 64
 
         Gs = functions.load_trained_Gs(opt)
         SMGAN_generate_word(Gs, opt)

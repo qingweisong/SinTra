@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from torchvision.models import resnet18
 import math
-import SMGAN.relativeAttention as relativeAttention
+from SMGAN.relativeAttention import TransformerBlock_RGA
 from SMGAN.model_xl import *
 
 #卷积块
@@ -143,7 +143,7 @@ class TransformerBlock(nn.Module):
         minP, indices = torch.min(mask, dim=-1, keepdim=True)
         valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
         sample = torch.distributions.Categorical(valid_p).sample()
-        return sample # 1, track, length
+        return sample # 1, track, lengtha
 
 
     def forward(self, img, draw_concat=False): # input: 1, track, length
@@ -213,6 +213,10 @@ class TransformerBlock(nn.Module):
 
 
 # =================== Transformer END =====================================
+
+# =============================
+# transformer
+# =============================
 class D_transform(nn.Module):
     def __init__(self, opt):
         super(D_transform, self).__init__()
@@ -232,7 +236,32 @@ class G_transform(nn.Module):
         x = self.transformer(x, draw_concat)
         return x, None
 
+# =============================
+# transformerRGA
+# =============================
 
+class D_transformRGA(nn.Module):
+    def __init__(self, opt):
+        super(D_transformRGA, self).__init__()
+        self.transformer = TransformerBlock_RGA(opt.ntrack, opt.nword)
+    
+    def forward(self,x, mems=None, draw_concat=False):
+        x = self.transformer(x, draw_concat)
+        return x, None
+
+class G_transformRGA(nn.Module):
+    def __init__(self, opt):
+        super(G_transformRGA, self).__init__()
+        self.transformer = TransformerBlock_RGA(opt.ntrack, opt.nword)
+    
+    def forward(self, x, y=None, mems=None, draw_concat=False):
+        x = self.transformer(x, draw_concat)
+        return x, None
+
+
+# =============================
+# transformerXL
+# =============================
 class D_transformXL(nn.Module):
     def __init__(self, opt):
         super(D_transformXL, self).__init__()

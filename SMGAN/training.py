@@ -448,6 +448,20 @@ def init_models(opt):
         if opt.netD != '':
             netD.load_state_dict(torch.load(opt.netD))
         # print(netD)#打印网络结构
+
+    elif opt.model_type == "rga":
+        netG = model.G_transformRGA(opt).to(opt.device)
+        netG.apply(model.weights_init)
+        if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
+            netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
+        # print(netG)#打印网络结构
+
+        netD = model.D_transformRGA(opt).to(opt.device)
+        netD.apply(model.weights_init)
+        if opt.netD != '':
+            netD.load_state_dict(torch.load(opt.netD))
+        # print(netD)#打印网络结构
+
     elif opt.model_type == "transformerXL":
 
         netG = model.G_transformXL(opt).to(opt.device)
@@ -475,6 +489,7 @@ def init_models(opt):
             netD.load_state_dict(torch.load(opt.netD))
         # print(netD)#打印网络结构
     else:
+        print(opt.model_type)
         print("not select model type in args! maybe transformer, transformerXL, conv")
         exit(0)
 
