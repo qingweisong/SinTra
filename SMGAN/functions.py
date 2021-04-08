@@ -56,7 +56,7 @@ def get_batch(data, i):
     assert i < data.shape[0]
     src = data[i, :, :, :]
     tgt = data[i+1, :, :, :]
-    return src, tgt 
+    return src, tgt  #[1, track, nth]
 
 def word_upsample(src, scale, opt):
     """

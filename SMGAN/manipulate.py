@@ -301,37 +301,52 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
 
         # din = torch.randint(opt.nword, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
 
-        # random_start = torch.randint(0, 12, [1]).item()
-        # din = reals_num[0][:, random_start:random_start+1, 0:4] # [track, one_bar, time]
-        # din = din.reshape([1, opt.ntrack, -1]) # [1, track, length]
+        random_start = torch.randint(0, 12, [1]).item()
+        din = reals_num[0][:, random_start:random_start+1, 0:4] # [track, one_bar, time]
+        din = din.reshape([1, opt.ntrack, -1]) # [1, track, length]
 
-        din = torch.randn([1, opt.ntrack, nbar*4, opt.noise_ninp], device=opt.device)
+        # din = torch.randn([1, opt.ntrack, nbar*4], device=opt.device) # [1, track, length]
 
         in_4th = din
         G_z = din
         song = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
 
-        # for l in range(nbar):
+        memGs = [tuple() for _ in range(len(Gs))]
+        for l in range(nbar):
+            for i, G in enumerate(Gs):
+                G.eval()
+                G_z, new_memG = G(G_z, *(memGs[i]), mode="topP")
+                memGs[i] = new_memG
+                if i == 0:
+                    in_4th = G_z
+                if i != 2:
+                    cur_scale = 2
+                    G_z = word_upsample(G_z, cur_scale, opt)
+            song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
+            G_z = in_4th
 
-        for i, G in enumerate(Gs):
-            G.eval()
-            # G_z, _ = G(G_z, draw_concat=False)
-            if i != 2:
-                G_z, _ = G(G_z, mode="feature")
-                cur_scale = 2
-                G_z = word_upsample_feature(G_z, cur_scale, opt)
-            else:
-                G_z, _ = G(G_z, mode="topP")
-                cur_scale = 2
-                # G_z = word_upsample(G_z, cur_scale, opt)
 
-            if i == 0:
-                in_4th = G_z
-                # print("{}-th length: ".format(i), in_4th.shape[2])
-        print("generate G 16th output shape: ", G_z.shape)
-        song[:, :, :] = G_z[:, :, :]
-        print("?????")
-        G_z = in_4th
+        # for i, G in enumerate(Gs):
+        #     G.eval()
+        #     # G_z, _ = G(G_z, draw_concat=False)
+        #     if i != 2:
+        #         G_z, _ = G(G_z, mode="feature")
+        #         cur_scale = 2
+        #         G_z = word_upsample_feature(G_z, cur_scale, opt)
+        #     else:
+        #         G_z, _ = G(G_z, mode="topP")
+        #         cur_scale = 2
+        #         # G_z = word_upsample(G_z, cur_scale, opt)
+
+        #     if i == 0:
+        #         in_4th = G_z
+        #         # print("{}-th length: ".format(i), in_4th.shape[2])
+
+
+        # print("generate G 16th output shape: ", G_z.shape)
+        # song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
+        # print("?????")
+        # G_z = in_4th
 
 
 

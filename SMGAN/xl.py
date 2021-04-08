@@ -493,9 +493,17 @@ class AdaptiveEmbedding(nn.Module):
         return embed
 
 class MemTransformerLM(nn.Module):
-    def __init__(self, n_token, n_layer, n_head, d_model, d_head, d_inner,
-                 dropout, dropatt, tie_weight=True, d_embed=None, 
-                 div_val=1, tie_projs=[False], pre_lnorm=False,
+    def __init__(self,  n_token,
+                        n_layer,
+                        n_track,
+                        n_head, 
+                        d_model, 
+                        d_head, 
+                        d_inner,
+                        dropout, 
+                        dropatt, 
+                 tie_weight=True, d_embed=None, 
+                 div_val=1, tie_projs=[False], pre_lnorm=True,
                  tgt_len=None, ext_len=None, mem_len=None, 
                  cutoffs=[], adapt_inp=False,
                  same_length=False, attn_type=0, clamp_len=-1, 
@@ -511,6 +519,15 @@ class MemTransformerLM(nn.Module):
 
         self.word_emb = AdaptiveEmbedding(n_token, d_embed, d_model, cutoffs, 
                                           div_val=div_val)
+
+        # handle track dim
+        self.n_track = n_track
+        self.track_conv1 = nn.Conv2d(n_track, 16, 1)
+        self.track_conv2 = nn.Conv2d(16, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 16, 1)
+        self.track_deconv2 = nn.Conv2d(16, n_track, 1)
+
+        self.decoders = nn.ModuleList([nn.Linear(d_model, n_token) for i in range(n_track)])
 
         self.drop = nn.Dropout(dropout)
 
@@ -640,9 +657,18 @@ class MemTransformerLM(nn.Module):
         return new_mems
 
     def _forward(self, dec_inp, mems=None):
-        qlen, bsz = dec_inp.size()
 
-        word_emb = self.word_emb(dec_inp)
+        # print(dec_inp.shape) # [1, track, length]
+
+        word_emb = self.word_emb(dec_inp.long()) # [1, track, length, feature]
+        src = word_emb
+        src = self.track_conv1(src) # 1, 16, length, feature
+        src = self.track_conv2(src) # 1, 1, length, feature
+        src = src[0, :, :, :] # 1, length, feature
+        src = src.permute(1, 0, 2) # length, bsz, feature
+        word_emb = src
+        qlen, bsz, _ = word_emb.size()
+
 
         mlen = mems[0].size(0) if mems is not None else 0
         klen = mlen + qlen
@@ -728,36 +754,103 @@ class MemTransformerLM(nn.Module):
                                  mems=mems_i)
                 hids.append(core_out)
 
-        core_out = self.drop(core_out)
+        core_out = self.drop(core_out) # length, 1, feature
+        core_out = core_out.permute(1, 0, 2) # 1, length, feature
+        core_out = core_out[:, None, :, :]  # 1, 1, length, feature
+        core_out = self.track_deconv1(core_out) # 1, 16, length, feature
+        core_out = self.track_deconv2(core_out) # 1, track, length, feature
+
+        outputs = []
+        for i in range(self.n_track):
+            a_track = self.decoders[i](core_out[:, i, :, :]) # 1, length, nword
+            a_track = a_track[:, None, :, :] # 1, 1, length, nword
+            outputs.append(a_track)
+
+        output = torch.cat(outputs, dim=1) # 1, track, length, nword
 
         new_mems = self._update_mems(hids, mems, mlen, qlen)
 
-        return core_out, new_mems
+        return output, new_mems
 
-    def forward(self, data, target, *mems):
+    def topP_sampling(self, x, p=0.8): # 1, track, length, nword
+        xp = F.softmax(x, dim=-1) # 1, track, length, nword
+        topP, indices = torch.sort(x, dim=-1, descending=True)
+        cumsum = torch.cumsum(topP, dim=-1)
+        mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+        minP, indices = torch.min(mask, dim=-1, keepdim=True)
+        valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+        sample = torch.distributions.Categorical(valid_p).sample()
+        return sample # 1, track, length
+
+    def forward(self, data, *mems, mode="loss"):
         # nn.DataParallel does not allow size(0) tensors to be broadcasted.
         # So, have to initialize size(0) mems inside the model forward.
         # Moreover, have to return new_mems to allow nn.DataParallel to piece
         # them together.
         if not mems: mems = self.init_mems()
 
-        tgt_len = target.size(0)
-        hidden, new_mems = self._forward(data, mems=mems)
+        # tgt_len = target.size(-1)
+        hidden, new_mems = self._forward(data, mems=mems) # [1, track, length, n_token], [length, 1, d_model]
 
-        pred_hid = hidden[-tgt_len:]
-        if self.sample_softmax > 0 and self.training:
-            assert self.tie_weight
-            logit = sample_logits(self.word_emb,
-                self.out_layer.bias, target, pred_hid, self.sampler)
-            loss = -F.log_softmax(logit, -1)[:, :, 0]
-        else:
-            loss = self.crit(pred_hid.view(-1, pred_hid.size(-1)), target.view(-1))
-            loss = loss.view(tgt_len, -1)
+        # hidden [1, track, length, n_token]
+        # tgt [1, track, length]
 
-        if new_mems is None:
-            return [loss]
-        else:
-            return [loss] + new_mems
+        if mode == "feature":
+            return hidden, new_mems #[1, track, length, feature]
+        elif mode == "topP":
+            sample = self.topP_sampling(hidden) # 1, track, length
+            return sample, new_mems
+        elif mode == "top1":
+            top1 = hidden # 1, track, length, nword
+            top1 = top1.argmax(dim=3) # 1, track, length
+            return top1, new_mems
+        elif mode == "loss":
+            output = hidden.permute(0, 3, 1, 2) # 1, nword, track, length
+            return output, new_mems # 1, nword, track, length
+
+        # pred_hid = hidden 
+        # pred_hid = pred_hid.reshape([-1, pred_hid.shape[-1]])
+        # target = target.reshape([-1])
+        # print(pred_hid.shape)
+        # print(target.shape)
+        # if self.sample_softmax > 0 and self.training:
+        #     assert self.tie_weight
+        #     logit = sample_logits(self.word_emb,
+        #         self.out_layer.bias, target, pred_hid, self.sampler)
+        #     loss = -F.log_softmax(logit, -1)[:, :, 0]
+        # else:
+        #     loss = self.crit(pred_hid.view(-1, pred_hid.size(-1)), target.view(-1))
+        #     loss = loss.view(tgt_len, -1)
+        
+        # print("you are the best")
+        # exit(0)
+        # if new_mems is None:
+        #     return [loss]
+        # else:
+        #     return [loss] + new_mems
+
+        def forward_generate(self, data, *mems):
+            if not mems: mems = self.init_mems()
+
+            tgt_len = data.size(0)
+            batch_size = data.size(1)
+            hidden, new_mems = self._forward(data, mems=mems)
+
+            pred_hid = hidden[-tgt_len:]
+
+            assert self.crit.n_clusters == 0
+
+            logits = self.crit._compute_logit(
+                pred_hid.view(-1, pred_hid.size(-1)),
+                self.crit.out_layers[0].weight,
+                self.crit.out_layers[0].bias,
+                self.crit.out_projs[0])
+            logits = logits.view(tgt_len, batch_size, -1)
+
+            if new_mems is None:
+                return [logits]
+            else:
+                return [logits] + new_mems
 
 if __name__ == '__main__':
     import argparse

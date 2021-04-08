@@ -23,7 +23,7 @@ wandb.init(
 
 lib = Lang("song")
 
-def trainWithGAN(opt, Gs, Ds, Zs, reals, NoiseAmp):
+def trainWithGANXL(opt, Gs, Ds, Zs, reals, NoiseAmp):
     print("************** start training ****************")
     in_s = 0#
     num_scale = 0
