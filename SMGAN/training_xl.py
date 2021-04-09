@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import wandb
 from tqdm import tqdm
 from SMGAN.utils import Lang
-import SMGAN.functions as functions
 from SMGAN.model_xl import MemTransformerLM
 
 
@@ -24,6 +23,8 @@ wandb.init(
 lib = Lang("song")
 
 def trainXL(opt, Gs, reals):
+    wandb_config = wandb.config
+    wandb_config.name = opt.name
     print("************** start training ****************")
     in_s = 0#
     num_scale = 0
@@ -50,10 +51,9 @@ def trainXL(opt, Gs, reals):
 
     reals = reals_num
 
-    print(reals[0].shape)
+    print("reals[0].shape: ", reals[0].shape)
     opt.nbar = reals[0].shape[1]
 
-    memGs = [tuple() for _ in range(len(reals))]
     while num_scale < len(reals): #opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
         opt.min_nfc = min(opt.min_nfc_init * pow(2, math.floor(num_scale / 4)), 128)
@@ -81,7 +81,7 @@ def trainXL(opt, Gs, reals):
         if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
 
-        G_curr = train_single_scale(G_curr, reals, Gs, in_s, opt)#训练该阶段模型并保存成netG.pth, netD.pth
+        G_curr = train_single_scale(G_curr, reals, Gs, opt)#训练该阶段模型并保存成netG.pth, netD.pth
 
         G_curr = functions.reset_grads(G_curr,False)#????????
         G_curr.eval()
@@ -96,7 +96,7 @@ def trainXL(opt, Gs, reals):
     return
 
 
-def train_single_scale(netG, reals, Gs, in_s, opt):
+def train_single_scale(netG, reals, Gs, opt):
     real = reals[len(Gs)]#len(Gs)=0  最小尺度的真值 3维   （track, bar, h）
     shape = real.shape
     real = real.reshape(1, shape[0], shape[1]*shape[2])#(1, track, bar*h）
@@ -109,13 +109,6 @@ def train_single_scale(netG, reals, Gs, in_s, opt):
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
     schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[1600],gamma=opt.gamma)
 
-    errD2plot = []#损失
-    errG2plot = []
-
-    D_real2plot = []#D_x
-    D_fake2plot = []#D_G_z
-    z_opt2plot = []#rec_loss
-
     print('********************Training start!********************')
     dataset = batchify(real, int(4*(2**(len(Gs)))))
     lowest_dataset = batchify(lowest_real, 4)
@@ -123,6 +116,7 @@ def train_single_scale(netG, reals, Gs, in_s, opt):
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         concat_mems = [tuple() for _ in range(len(Gs))]
         memG = tuple()
+        average_loss = []
         for i in range(len(dataset) - 1):
             _, tgt = get_batch(dataset, i) # 1, track, length
             lowest_input, _ = get_batch(lowest_dataset, i)
@@ -134,10 +128,11 @@ def train_single_scale(netG, reals, Gs, in_s, opt):
             loss = criterion(output, tgt.long())
             loss.backward()
             optimizerG.step()#网络参数更新
+            average_loss.append(loss.detach().item())
 
-            wandb.log({
-                "loss [%d]"% len(Gs): loss.detach()}
-            )
+        wandb.log({
+            "loss [%d]"% len(Gs): sum(average_loss) / (len(dataset) - 1)
+            })
 
         schedulerG.step()
 

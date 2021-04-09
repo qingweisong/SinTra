@@ -23,6 +23,8 @@ wandb.init(
 lib = Lang("song")
 
 def trainXL_one(opt, Gs, reals):
+    wandb_config = wandb.config
+    wandb_config.name = opt.name
     print("************** start training ****************")
     in_s = 0#
     num_scale = 0
@@ -49,10 +51,8 @@ def trainXL_one(opt, Gs, reals):
 
     reals = reals_num
 
-    print(reals[0].shape)
+    print("reals[0].shape: ", reals[0].shape)
     opt.nbar = reals[0].shape[1]
-
-    memGs = [tuple() for _ in range(len(reals))]
 
     num_scale = len(reals) - 1 # the last scale
 
@@ -82,7 +82,7 @@ def trainXL_one(opt, Gs, reals):
     if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
         G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
 
-    G_curr = train_single_scale(G_curr, reals, Gs, in_s, opt, scale=(2**num_scale)*4 )#训练该阶段模型并保存成netG.pth, netD.pth
+    G_curr = train_single_scale(G_curr, reals, Gs, opt, scale=(2**num_scale)*4 )#训练该阶段模型并保存成netG.pth, netD.pth
 
     G_curr = functions.reset_grads(G_curr,False)#????????
     G_curr.eval()
@@ -98,7 +98,7 @@ def trainXL_one(opt, Gs, reals):
     return
 
 
-def train_single_scale(netG, reals, Gs, in_s, opt, scale):
+def train_single_scale(netG, reals, Gs, opt, scale):
     real = reals[-1] # the last scale （track, bar, h）
     shape = real.shape
     real = real.reshape(1, shape[0], shape[1]*shape[2])#(1, track, bar*h）
@@ -113,6 +113,7 @@ def train_single_scale(netG, reals, Gs, in_s, opt, scale):
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         concat_mems = [tuple() for _ in range(len(Gs))]
         memG = tuple()
+        average_loss = []
         for i in range(len(dataset) - 1):
             src, tgt = get_batch(dataset, i) # 1, track, length
 
@@ -122,10 +123,11 @@ def train_single_scale(netG, reals, Gs, in_s, opt, scale):
             loss = criterion(output, tgt.long())
             loss.backward()
             optimizerG.step()#网络参数更新
+            average_loss.append(loss.detach().item())
 
-            wandb.log({
-                "loss [%d]"% len(Gs): loss.detach()}
-            )
+        wandb.log({
+            "loss [%d]"% len(Gs): sum(average_loss) / (len(dataset) - 1)
+            })
 
         schedulerG.step()
 
@@ -138,13 +140,13 @@ def init_models(opt, length):
 
         netG = MemTransformerLM(
             n_token=lib.n_words,
-            n_layer=6,
+            n_layer=3,
             n_track=opt.ntrack,
             n_head=4,
-            d_model=256,
-            d_head=32,
-            d_inner=1024,
-            dropout=0.1,
+            d_model=128,
+            d_head=16,
+            d_inner=512,
+            dropout=0.3,
             dropatt=0.0,
 
             tgt_len=length,

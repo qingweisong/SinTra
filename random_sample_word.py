@@ -1,6 +1,5 @@
 from config import get_arguments
 from SMGAN.manipulate import *
-from SMGAN.training import *
 import SMGAN.functions as functions
 
 

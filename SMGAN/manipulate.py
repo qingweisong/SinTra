@@ -299,6 +299,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
 
 
     num_G = len(Gs)
+    print("number of stages: ", num_G)
     for ii in tqdm(range(0, num_samples, 1)):
         nbar = 32
 
@@ -327,7 +328,6 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
                     G_z = word_upsample(G_z, cur_scale, opt)
             song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
             G_z = in_4th
-
 
         # for i, G in enumerate(Gs):
         #     G.eval()
