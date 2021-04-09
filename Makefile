@@ -24,10 +24,13 @@ default:
 run: train
 
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_msxl.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 1
+
+train_one: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_ssxl.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 9000
 
 train_pickle: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_msxl.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000
 
 cleanModels:
 	rm TrainedModels/jsb-chorales-16th_$(NAME)_$(TYPE) -rf
@@ -37,6 +40,9 @@ cleanOutputs:
 
 test: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir midi --input_phrase ./3000adamno_l.mid --mode random_samples --name _$(NAME)_$(TYPE)
+
+test_one: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir midi --input_phrase ./kano.mid --mode random_samples --name _$(NAME)_$(TYPE)
 
 test_arbitrary: hasname
 	CUDA_VISIBLE_DEVICES=0 python random_sample.py --input_dir midi --input_phrase ./3000adamno_l.mid --mode random_samples_arbitrary_sizes --scale_v 2 --name $(NAME)

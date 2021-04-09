@@ -18,14 +18,14 @@ from SMGAN.xl import MemTransformerLM
 
 
 wandb.init(
-    project="single-musegan-word-ganxl",
+    project="one_stage_xl",
     config = {
     }
 )
 
 lib = Lang("song")
 
-def trainXL(opt, Gs, Zs, reals):
+def trainXL_one(opt, Gs, reals):
     print("************** start training ****************")
     in_s = 0#
     num_scale = 0
@@ -56,82 +56,68 @@ def trainXL(opt, Gs, Zs, reals):
     opt.nbar = reals[0].shape[1]
 
     memGs = [tuple() for _ in range(len(reals))]
-    while num_scale < len(reals): #opt.stop_scale + 1:#5
-        opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
-        opt.min_nfc = min(opt.min_nfc_init * pow(2, math.floor(num_scale / 4)), 128)
 
-        opt.out = functions.generate_dir2save(opt)
-        opt.outp = '%s/%d' % (opt.out, num_scale)
-        try:
-            os.makedirs(opt.outp)
-        except OSError:#上一句未执行成功就pass
-            pass
-        
-        print("************* Save real_scale **************")
-        real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
-        print("current real_scale shape is : ", end ="")
-        print(real_scale.shape)
-        merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
-        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
-        # wandb.log({
-        #     "real [%d]"% num_scale: wandb.Image(merged)},
-        #     commit=False
-        # )
+    num_scale = len(reals) - 1 # the last scale
 
-        #初始化D,G模型       打印网络结构
-        G_curr, D_curr= init_models(opt, (2**num_scale)*4)
-        if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
-            G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
-            D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
+    opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
+    opt.min_nfc = min(opt.min_nfc_init * pow(2, math.floor(num_scale / 4)), 128)
 
-        G_curr = train_single_scale(D_curr,G_curr, reals, Gs, in_s, opt)#训练该阶段模型并保存成netG.pth, netD.pth
+    opt.out = functions.generate_dir2save(opt)
+    opt.outp = '%s/%d' % (opt.out, num_scale)
+    try:
+        os.makedirs(opt.outp)
+    except OSError:#上一句未执行成功就pass
+        pass
+    
+    print("************* Save real_scale **************")
+    real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
+    print("current real_scale shape is : ", end ="")
+    print(real_scale.shape)
+    merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
+    save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
+    # wandb.log({
+    #     "real [%d]"% num_scale: wandb.Image(merged)},
+    #     commit=False
+    # )
 
-        G_curr = functions.reset_grads(G_curr,False)#????????
-        G_curr.eval()
-        D_curr = functions.reset_grads(D_curr,False)
-        D_curr.eval()
+    #初始化D,G模型       打印网络结构
+    G_curr = init_models(opt, (2**num_scale)*4)
+    if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
+        G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
 
-        Gs.append(G_curr)
+    G_curr = train_single_scale(G_curr, reals, Gs, in_s, opt, scale=(2**num_scale)*4 )#训练该阶段模型并保存成netG.pth, netD.pth
 
-        torch.save(Gs, '%s/Gs.pth' % (opt.out))
+    G_curr = functions.reset_grads(G_curr,False)#????????
+    G_curr.eval()
 
-        num_scale += 1
-        nfc_prev = opt.nfc
-        del D_curr, G_curr#把上一阶段数据清空
+    Gs.append(G_curr)
+
+    torch.save(Gs, '%s/Gs.pth' % (opt.out))
+
+    num_scale += 1
+    nfc_prev = opt.nfc
+    del G_curr#把上一阶段数据清空
+
     return
 
 
-def train_single_scale(netD, netG, reals, Gs, in_s, opt, centers=None):
-    real = reals[len(Gs)]#len(Gs)=0  最小尺度的真值 3维   （track, bar, h）
+def train_single_scale(netG, reals, Gs, in_s, opt, scale):
+    real = reals[-1] # the last scale （track, bar, h）
     shape = real.shape
     real = real.reshape(1, shape[0], shape[1]*shape[2])#(1, track, bar*h）
-
-    lowest_real = reals[0]
-    lowest_shape = lowest_real.shape
-    lowest_real = lowest_real.reshape(1, lowest_shape[0], lowest_shape[1]*lowest_shape[2])
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
     schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[1600],gamma=opt.gamma)
 
-    errD2plot = []#损失
-    errG2plot = []
-
-    D_real2plot = []#D_x
-    D_fake2plot = []#D_G_z
-    z_opt2plot = []#rec_loss
-
     print('********************Training start!********************')
-    dataset = batchify(real, int(4*(2**(len(Gs)))))
-    lowest_dataset = batchify(lowest_real, 4)
+    dataset = batchify(real, scale)
 
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         concat_mems = [tuple() for _ in range(len(Gs))]
         memG = tuple()
         for i in range(len(dataset) - 1):
-            _, tgt = get_batch(dataset, i) # 1, track, length
-            lowest_input, _ = get_batch(lowest_dataset, i)
-            src = draw_concat(Gs, lowest_input, concat_mems, opt)
+            src, tgt = get_batch(dataset, i) # 1, track, length
 
             netG.zero_grad()
             output, memG = netG(src, *memG, mode="loss") # 1, nwork, track, length
@@ -146,24 +132,12 @@ def train_single_scale(netD, netG, reals, Gs, in_s, opt, centers=None):
 
         schedulerG.step()
 
-    functions.save_networks(netG, netD, None, opt)
+    functions.save_networks(netG, None, None, opt)
     return netG
-
-
-def draw_concat(Gs, in_s, memGs, opt):
-    G_z = in_s#第一阶段G_z=in_s(图片大小)
-    if len(Gs) > 0:##其他阶段
-        for i, G in enumerate(Gs):
-            ########################################！！！！！！！！！！第一阶段噪声每track相同
-            G_z, new_mem = G(G_z, *(memGs[i]), mode="top1")
-            cur_scale = 2
-            G_z = word_upsample(G_z, cur_scale, opt)
-            memGs[i] = new_mem
-    return G_z
 
 #初始化模型
 def init_models(opt, length):
-    if opt.model_type == "ganxl":
+    if opt.model_type == "ssxl":
 
         netG = MemTransformerLM(
             n_token=lib.n_words,
@@ -182,28 +156,11 @@ def init_models(opt, length):
         ).to(opt.device)
         netG.apply(weights_init)
 
-        netD = MemTransformerLM(
-            n_token=lib.n_words,
-            n_layer=6,
-            n_track=opt.ntrack,
-            n_head=4,
-            d_model=256,
-            d_head=32,
-            d_inner=1024,
-            dropout=0.1,
-            dropatt=0.0,
-
-            tgt_len=length,
-            mem_len=length,
-            ext_len=0
-        ).to(opt.device)
-        netD.apply(weights_init)
-
     else:
         print("not select model type in args! maybe transformer, transformerXL, conv")
         exit(0)
 
-    return netG, netD
+    return netG
 
 def init_weight(weight):
     # if args.init == 'uniform':

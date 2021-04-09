@@ -296,13 +296,15 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
     except OSError:
         pass
 
+
+    num_G = len(Gs)
     for ii in tqdm(range(0, num_samples, 1)):
         nbar = 32
 
         # din = torch.randint(opt.nword, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
 
         random_start = torch.randint(0, 12, [1]).item()
-        din = reals_num[0][:, random_start:random_start+1, 0:4] # [track, one_bar, time]
+        din = reals_num[3- num_G][:, random_start:random_start+1, :] # [track, one_bar, time]
         din = din.reshape([1, opt.ntrack, -1]) # [1, track, length]
 
         # din = torch.randn([1, opt.ntrack, nbar*4], device=opt.device) # [1, track, length]
@@ -319,7 +321,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10):
                 memGs[i] = new_memG
                 if i == 0:
                     in_4th = G_z
-                if i != 2:
+                if i != (num_G-1):
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale, opt)
             song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
