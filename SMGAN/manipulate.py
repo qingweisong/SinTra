@@ -1,10 +1,7 @@
 from __future__ import print_function
-import SMGAN.functions
-import SMGAN.model
 import argparse
 import os
 import random
-from SMGAN.functions import imresize
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
@@ -17,12 +14,16 @@ from skimage import color
 import math
 import imageio
 import matplotlib.pyplot as plt
-from SMGAN.training import *
 from config import get_arguments
 from SMGAN.metrics import Metrics
 import sys
 import muspy
 from tqdm import tqdm
+from SMGAN.utils import Lang
+from SMGAN.in_out import *
+import SMGAN.functions as functions
+from SMGAN.image_io import *
+from SMGAN.midi_io import *
 
 def generate_config(opt):
     config = {}

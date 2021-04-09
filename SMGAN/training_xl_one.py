@@ -1,6 +1,4 @@
 import SMGAN.functions as functions
-import SMGAN.model as model
-import SMGAN.model_GAN as gan
 from SMGAN.in_out import *
 from SMGAN.image_io import *
 from SMGAN.implement import *
@@ -13,8 +11,7 @@ import matplotlib.pyplot as plt
 import wandb
 from tqdm import tqdm
 from SMGAN.utils import Lang
-import SMGAN.functions as functions
-from SMGAN.xl import MemTransformerLM
+from SMGAN.model_xl import MemTransformerLM
 
 
 wandb.init(

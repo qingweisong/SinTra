@@ -27,10 +27,13 @@ train: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python main_msxl.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 1
 
 train_one: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main_ssxl.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 9000
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_ssxl.py --input_dir midi --input_phrase ./kano.mid --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 1
 
 train_pickle: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main_msxl.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 3000
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_msxl.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 1
+
+train_one_pickle: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main_ssxl.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name _$(NAME)_$(TYPE) --model_type $(TYPE) --niter 1
 
 cleanModels:
 	rm TrainedModels/jsb-chorales-16th_$(NAME)_$(TYPE) -rf
