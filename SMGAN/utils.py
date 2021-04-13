@@ -155,7 +155,6 @@ def get_masked_with_pad_tensor(size, src, trg, pad_token):
     :param pad_token: pad token
     :return:
     """
-    print(src.shape)
     src = src[:, None, None, :]
     trg = trg[:, None, None, :]
     src_pad_tensor = torch.ones_like(src).to(src.device.type) * pad_token
@@ -167,11 +166,7 @@ def get_masked_with_pad_tensor(size, src, trg, pad_token):
         # boolean reversing i.e) True * -1 + 1 = False
         seq_mask = ~sequence_mask(torch.arange(1, size+1).to(trg.device), size)
         # look_ahead_mask = torch.max(dec_trg_mask, seq_mask)
-        print(dec_trg_mask.shape)
-        print(seq_mask.shape)
         look_ahead_mask = dec_trg_mask | seq_mask[:, ]
-        exit(0)
-
     else:
         trg_mask = None
         look_ahead_mask = None

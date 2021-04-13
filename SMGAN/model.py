@@ -4,8 +4,9 @@ import numpy as np
 import torch.nn.functional as F
 from torchvision.models import resnet18
 import math
-import SMGAN.relativeAttention as relativeAttention
-from SMGAN.model_xl import *
+
+import SMGAN.relativeAttention as rga
+import SMGAN.model_xl as xl
 
 #卷积块
 class ConvBlock(nn.Sequential):
@@ -198,6 +199,10 @@ class TransformerBlock(nn.Module):
         
 
 # =================== Transformer END =====================================
+
+# =============================
+# transformer
+# =============================
 class D_transform(nn.Module):
     def __init__(self, opt):
         super(D_transform, self).__init__()
@@ -217,11 +222,33 @@ class G_transform(nn.Module):
         x = self.transformer(x, mode, p)
         return x, None
 
+# =============================
+# transformerRGA
+# =============================
+
+class D_transformRGA(nn.Module):
+    def __init__(self, opt):
+        super(D_transformRGA, self).__init__()
+        self.transformer = rga.TransformerBlock_RGA(opt.ntrack, opt.nword)
+    
+    def forward(self,x, mems=None, draw_concat=False):
+        x = self.transformer(x, draw_concat)
+        return x, None
+
+class G_transformRGA(nn.Module):
+    def __init__(self, opt):
+        super(G_transformRGA, self).__init__()
+        self.transformer = rga.TransformerBlock_RGA(opt.ntrack, opt.nword)
+    
+    def forward(self, x, mems=None, mode=False, p=0.6):
+        x = self.transformer(x, mode, p)
+        return x, None
+
 
 class D_transformXL(nn.Module):
     def __init__(self, opt):
         super(D_transformXL, self).__init__()
-        self.transformer = TransformerXL(
+        self.transformer = xl.TransformerXL(
             opt.ntrack, 
             # n_layer, 
             # n_head, 
@@ -246,7 +273,7 @@ class D_transformXL(nn.Module):
 class G_transformXL(nn.Module):
     def __init__(self, opt):
         super(G_transformXL, self).__init__()
-        self.transformer = TransformerXL(
+        self.transformer = xl.TransformerXL(
             opt.ntrack, 
             # n_layer, 
             # n_head, 

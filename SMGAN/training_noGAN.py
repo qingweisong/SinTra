@@ -114,7 +114,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     lowest_dataset = batchify(lowest_real, 4) # N, 1, track, length
     print(">>> the {}th stage, epoch is {}".format(
         len(Gs),
-        (len(Gs)+1)*opt.niter
+        opt.niter
     ))
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         assert (dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)) == int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)))
@@ -122,21 +122,17 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
             _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # 1, track, length
             lowest_input, _ = get_batch(lowest_dataset, i, 4)
 
+
             src = draw_concat(Gs, lowest_input, opt)
 
             netG.zero_grad()
             # print("drawcat shape: ", src.shape)
             output, _ = netG(src, mode="nword") # 1, nwork, track, length
+
             criterion = nn.CrossEntropyLoss()
             loss = criterion(output, tgt.long())
             loss.backward()
             optimizerG.step()#网络参数更新
-
-        # if epoch % 10 == 0 or epoch == (opt.niter-1):
-        #     song = output.detach().argmax(dim=1) # [1, track, length]
-        #     song = output.reshape([opt.ntrack, opt.nbar, -1])
-        #     song = lib.num2song(functions.convert_image_np(output.detach()))[None, ]
-        #     run_sampler(opt, song, epoch, postfix='666')
 
             wandb.log({
                 "loss [%d]"% len(Gs): loss.detach()}
@@ -169,6 +165,18 @@ def init_models(opt):
         # print(netG)#打印网络结构
 
         netD = model.D_transform(opt).to(opt.device)
+        netD.apply(model.weights_init)
+        if opt.netD != '':
+            netD.load_state_dict(torch.load(opt.netD))
+        # print(netD)#打印网络结构
+    if opt.model_type == "rga":
+        netG = model.G_transformRGA(opt).to(opt.device)
+        netG.apply(model.weights_init)
+        if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
+            netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
+        # print(netG)#打印网络结构
+
+        netD = model.D_transformRGA(opt).to(opt.device)
         netD.apply(model.weights_init)
         if opt.netD != '':
             netD.load_state_dict(torch.load(opt.netD))

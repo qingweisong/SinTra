@@ -237,40 +237,49 @@ class Encoder(torch.nn.Module):
 
 
 # ==========================================================
-class TransformerBlock_RGA(nn.Module):
+class TransformerBlock_RGA(torch.nn.Module):
 
     def __init__(
             self,
-            npitch,
             track,
-            ninp = 256,
-            ninp_pitch = 32,
-            nhead = 16,
-            nhid = 256,
-            nlayers = 3,
+            nword,
+            ninp = 64,
+            nhead = 8,
+            nhid = 512,
+            nlayers = 6,
             dropout=0.1,
             max_len=2048
     ):
         super(TransformerBlock_RGA, self).__init__()
-        self.model_type = 'Transformer'
+        self.model_type = 'Transformer_RGA'
         self.src_mask = None
+        self.track = track
+        self.ninp = ninp
+        self.max_seq = max_len
+        self.nlayers = nlayers
 
         self.pos_encoding = DynamicPositionEmbedding(ninp, max_seq=max_len)
 
+        # handle track dim
+        self.track_conv1 = nn.Conv2d(track, 16, 1)
+        self.track_conv2 = nn.Conv2d(16, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 16, 1)
+        self.track_deconv2 = nn.Conv2d(16, track, 1)
+
+        # embeding
+        # 1st: pitch -> 64 -> 32 -> 1
+        # 2rd: track -> feature
+        self.embeding = nn.Embedding(nword, ninp)
+
+        # transformer rga
         self.enc_layers = torch.nn.ModuleList(
-            [EncoderLayer(ninp, dropout, h=ninp // 64, additional=False, max_seq=max_len)
+            [EncoderLayer(ninp, dropout, h=ninp // 16, additional=False, max_seq=max_len)
              for _ in range(nlayers)])
         self.dropout = torch.nn.Dropout(dropout)
 
-        self.embeding_picth = nn.Conv2d(npitch, ninp_pitch, 1)
-        self.embeding = nn.Conv2d(track, ninp, 1)
-        self.pool = nn.MaxPool2d(2,2)
-        self.deconv = nn.ConvTranspose2d(ninp, ninp, 4, 2, 1, 0)
-        self.ninp = ninp
-        self.nlayers = nlayers
-        self.max_len = max_len
-        self.decoder_pitch = nn.Conv2d(ninp_pitch, npitch, 1)
-        self.decoder = nn.Conv2d(ninp, track, 1)
+        # deocder
+        self.decoder = nn.Linear(ninp, nword)
+        self.decoders = nn.ModuleList([nn.Linear(ninp, nword) for i in range(track)])
 
         self.init_weights()
 
@@ -285,43 +294,57 @@ class TransformerBlock_RGA(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, img):
+    def topP_sampling(self, x, p=0.6): # 1, track, length, nword
+        xp = F.softmax(x, dim=-1) # 1, track, length, nword
+        topP, indices = torch.sort(x, dim=-1, descending=True)
+        cumsum = torch.cumsum(topP, dim=-1)
+        mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+        minP, indices = torch.min(mask, dim=-1, keepdim=True)
+        valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+        sample = torch.distributions.Categorical(valid_p).sample()
+        return sample # 1, track, lengtha
 
-        # Embeding
-        src = img.permute([0, 3, 2, 1])
-        src = self.embeding_picth(src)
-        src = src.permute([0, 3, 2, 1])
-        src = self.embeding(src)
+    def forward(self, img, mode, p=0.6):
 
-        originShape = src.shape
+        img = img.long().cuda() # 1, track, length
 
-        H, W = originShape[-2:]
-        if self.src_mask is None or self.src_mask.size(0) != H*W:
-            device = src.device
-            mask = self._generate_square_subsequent_mask(H*W).to(device)
-            self.src_mask = mask
+        tmp = img[:, 0, :]
+        _, _, look_ahead_mask = utils.get_masked_with_pad_tensor(tmp.shape[1], tmp, tmp, -10)
 
+        src = self.embeding(img) # 1, track, length, feature
 
-        src *= math.sqrt(self.ninp)
-        src = self.pos_encoding(src.flatten(2).permute(2, 0, 1))
-        src = self.dropout(src)
+        src = self.track_conv1(src) # 1, 16, length, feature
+        src = self.track_conv2(src) # 1, 1, length, feature
+        src = src[:, 0, :, :] # N, length, feature
+
+        src = src * math.sqrt(self.ninp)
 
         weights = []
         x = src
-        # _, _, look_ahead_mask = utils.get_masked_with_pad_tensor(self.max_len, x, x, 0)
-
         for i in range(self.nlayers):
-            x, w = self.enc_layers[i](x, None)
+            x, w = self.enc_layers[i](x, look_ahead_mask)
             weights.append(w)
-        
-        output = x.permute(1, 2, 0)
 
-        output = output.reshape(originShape)
+        output = x[:, None, :, :] # 1, 1, length, feature
+        output = self.track_deconv1(output) # 1, 16, length, feature
+        output = self.track_deconv2(output) # 1, track, length, feature
 
-        output = self.decoder(output)
+        outputs = []
+        for i in range(self.track):
+            a_track = self.decoders[i](output[:, i, :, :]) # 1, length, nword
+            a_track = a_track[:, None, :, :] # 1, 1, length, nword
+            outputs.append(a_track)
 
-        output = output.permute([0, 3, 2, 1])
-        output = self.decoder_pitch(output)
-        output = output.permute([0, 3, 2, 1])
+        output = torch.cat(outputs, dim=1) # 1, track, length, nword
 
-        return output
+        if mode == "top1":
+            top1 = output # 1, track, length, nword
+            top1 = top1.argmax(dim=3) # 1, track, length
+            return top1 
+        elif mode == "topP":
+            sample = self.topP_sampling(output, p) # 1, track, length
+            return sample
+        elif mode == "nword":
+            output = output.permute(0, 3, 1, 2) # 1, nword, track, length
+
+            return output # 1, nword, track, length
