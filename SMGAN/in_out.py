@@ -87,7 +87,7 @@ def midiArrayReshape(array, opt):
     data = data.reshape([shape[0], shape[1]*shape[2], shape[3], shape[4]])
     #####最大尺度输入的是bool类型矩阵(0101)
     data = (data>0)
-    return data[:, 0:8, :, :] #[track, all_bar, time, pitch]
+    return data[:, 0:16, :, :] #[track, all_bar, time, pitch]
 
 
 def piano_roll2midifile(piano_roll, filepath, opt):

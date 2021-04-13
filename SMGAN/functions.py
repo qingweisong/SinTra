@@ -36,6 +36,7 @@ def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
     track, all_bars, time, pitch = song.shape
 
     down_scale = in_scale / np.array(out_scale, dtype=np.int)
+    assert in_scale >= out_scale[-1]
 
     for i in down_scale:
         tmp = song[:, :, ::int(i), :]

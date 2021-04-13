@@ -65,7 +65,7 @@ def write_midi(filepath, pianorolls, program_nums=None, is_drums=None,
     multitrack.write(filepath)
     return multitrack
 
-def save_midi(filepath, phrases, opt):
+def save_midi(filepath, phrases, opt, beat_resolution):
     """
     Save a batch of phrases to a single MIDI file.
 
@@ -94,4 +94,4 @@ def save_midi(filepath, phrases, opt):
     pad_width = ((0, 0), (0, opt.pause_between_samples), (0, 0), (0, 0))
     padded = np.pad(reshaped, pad_width, 'constant')
     pianorolls = padded.reshape(-1, padded.shape[2], padded.shape[3])#(42*4+96, 56, 6)
-    return write_midi(filepath, pianorolls, opt.program_num, opt.is_drum, tempo=opt.tempo)
+    return write_midi(filepath, pianorolls, opt.program_num, opt.is_drum, tempo=opt.tempo, beat_resolution=beat_resolution)

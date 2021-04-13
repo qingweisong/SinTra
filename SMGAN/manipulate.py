@@ -264,6 +264,13 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
     return I_curr.detach()
 
 
+def save_pic_midi(song, dir, index, opt, beat_resolution, wandb_enable):
+    pic = save_image('%s/%d.png' % (dir, index), song.copy(), (1,1))
+    multitrack = save_midi('%s/%d.mid' % (dir, index), song.copy(), opt, beat_resolution)
+
+    if wandb_enable == True:
+        wandb.log({"output_image[%d]"%index: wandb.Image(pic)})
+
 def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
 
     lib = Lang("song")
@@ -295,6 +302,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
 
     try:
         os.makedirs(dir2save)
+        os.makedirs(dir2save+"/32th/")
+        os.makedirs(dir2save+"/16th/")
+        os.makedirs(dir2save+"/generate/")
         os.makedirs(dir2save+"/8th/")
         os.makedirs(dir2save+"/4th/")
     except OSError as e:
@@ -310,10 +320,11 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         din = din.reshape([1, opt.ntrack, -1])
         in_4th = din
         G_z = din
-        song = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
 
         song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
         song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
+        song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
+        song32th = torch.zeros([1, opt.ntrack, nbar*32], dtype=torch.long)
         # print("din length: ", din.shape[2])
 
         for l in range(nbar*4):
@@ -323,17 +334,23 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                     in_4th = G_z
                 if i == 1:
                     in_8th = G_z
-                if i != 2:
+                if i == 2:
+                    in_16th = G_z
+                if i != (len(Gs)-1):
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale)
             # print(G_z)
-            song[:, :, l*4:(l+1)*4] = G_z[:, :, -4:]
+            song32th[:, :, l*8:(l+1)*8] = G_z[:, :, -8:]
+            song16th[:, :, l*4:(l+1)*4] = in_16th[:, :, -4:]
             song8th[:, :, l*2:(l+1)*2] = in_8th[:, :, -2:]
             song4th[:, :, l*1:(l+1)*1] = G_z[:, :, -1:]
             G_z = in_4th
         
-        song = song.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
-        song = lib.num2song(song[0])[None, ] # [1, track, nbar, length, pitch]
+        song32th = song32th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+        song32th = lib.num2song(song32th[0])[None, ] # [1, track, nbar, length, pitch]
+
+        song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+        song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
         song8th = song8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
         song8th = lib.num2song(song8th[0])[None, ] # [1, track, nbar, length, pitch]
@@ -341,20 +358,21 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
         song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
 
-        # 16th
-        pic = save_image('%s/%d.png' % (dir2save, ii), song.copy(), (1,1))
-        if wandb_enable == True:
-            wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
-        multitrack = save_midi('%s/%d.mid' % (dir2save, ii), song.copy(), opt)
+        generate = song32th[:, :, :, ::2, :]
 
-        # 8th
-        pic = save_image('%s/%d.png' % (dir2save+"/8th", ii), song8th.copy(), (1,1))
-        # if wandb_enable == True:
-        #     wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
-        multitrack = save_midi('%s/%d.mid' % (dir2save+"/8th", ii), song8th.copy(), opt)
 
-        # 4th
-        pic = save_image('%s/%d.png' % (dir2save+"/4th", ii), song4th.copy(), (1,1))
-        # if wandb_enable == True:
-        #     wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
-        multitrack = save_midi('%s/%d.mid' % (dir2save+"/4th", ii), song4th.copy(), opt)
+        """
+            | beat resolution | fs | what    | time |                                  
+            |-----------------+----+---------+------|
+            |               1 |  2 | 4 4th   | 2s   |
+            |               2 |  4 | 8 8th   | 2s   |
+            |               4 |  8 | 16 16th | 2s   |
+            |               8 | 16 | 32 32th | 2s   |
+        """
+
+        save_pic_midi(generate, dir2save+"/generate", ii, opt, 4, False | wandb_enable)
+        save_pic_midi(song32th, dir2save+"/32th",     ii, opt, 8, False)
+        save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False)
+        save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
+        save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
+

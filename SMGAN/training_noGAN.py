@@ -38,7 +38,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
     lib.addSong(real_) # for generating lib
     print(">> Total words = ", lib.n_words)
     opt.nword = lib.n_words
-    reals = functions.get_reals(real_, reals, 16, [4,8,16])
+    reals = functions.get_reals(real_, reals, 32, [4,8,16,32])
     reals_num = list(map(lambda x:lib.song2num(x), reals))
     reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, time
 
@@ -60,7 +60,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
         real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
         print(">> current real_scale shape is : ", real_scale.shape)
         merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
-        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
+        save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt, beat_resolution=2**num_scale)
         # wandb.log({
         #     "real [%d]"% num_scale: wandb.Image(merged)},
         #     commit=False
@@ -100,7 +100,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
-    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[3000],gamma=opt.gamma)
+    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[2500],gamma=opt.gamma)
 
     errD2plot = []#损失
     errG2plot = []
@@ -116,7 +116,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         len(Gs),
         (len(Gs)+1)*opt.niter
     ))
-    for epoch in tqdm(range(opt.niter * (len(Gs) + 1))):#一阶段2000个epoch
+    for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         assert (dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)) == int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)))
         for i in range( int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs))) ):
             _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # 1, track, length
