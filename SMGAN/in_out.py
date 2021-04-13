@@ -80,12 +80,14 @@ def midiArrayReshape(array, opt):
     assert len(array.shape) == 3, "input dim isn't equal to 3 (tracks, pitch, time)"
     shape = array.shape
     #一小节2s  fs每秒采样次数
-    data = array.reshape((shape[0], shape[1], -1, opt.nbar, int(opt.nbar*opt.fs*0.5)))#(6, 128, 31, 4, 96)
-    data = data.transpose(2, 0, 3, 4, 1)
-    data = data[2:3, :, :, :, :]
+    data = array.reshape((shape[0], shape[1], -1, 4, int(4*opt.fs*0.5)))#(6, 128, 31, 4, 96) [track, pitch, phrase, 4, time]
+    data = data.transpose(2, 0, 3, 4, 1) #[phrase, track, 4, time, pitch]
+    data = data.transpose(1, 0, 2, 3, 4) # [track, phrase, 4, time, pitch]
+    shape = data.shape
+    data = data.reshape([shape[0], shape[1]*shape[2], shape[3], shape[4]])
     #####最大尺度输入的是bool类型矩阵(0101)
     data = (data>0)
-    return data
+    return data[:, 0:8, :, :] #[track, all_bar, time, pitch]
 
 
 def piano_roll2midifile(piano_roll, filepath, opt):

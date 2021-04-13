@@ -17,12 +17,13 @@ from skimage import color
 import math
 import imageio
 import matplotlib.pyplot as plt
-from SMGAN.training import *
+from SMGAN.training_noGAN import *
 from config import get_arguments
 from SMGAN.metrics import Metrics
 import sys
 import muspy
 from tqdm import tqdm
+import wandb
 
 def generate_config(opt):
     config = {}
@@ -263,7 +264,7 @@ def SMGAN_generate(Gs,Zs,reals,NoiseAmp,opt,in_s=None,scale_v=1,scale_h=1,n=0,ge
     return I_curr.detach()
 
 
-def SMGAN_generate_word(Gs, opt, num_samples=1):
+def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
 
     lib = Lang("song")
 
@@ -275,7 +276,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=1):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
-        real_ = functions.load_phrase_from_pickle(opt, all=True)
+        real_ = functions.load_phrase_from_pickle(opt)
 
     print("Input real_ shape = ", real_.shape)
 
@@ -291,36 +292,69 @@ def SMGAN_generate_word(Gs, opt, num_samples=1):
         dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.input_phrase[:-4], 0)
     else:
         dir2save = functions.generate_dir2save(opt)
+
     try:
         os.makedirs(dir2save)
-    except OSError:
+        os.makedirs(dir2save+"/8th/")
+        os.makedirs(dir2save+"/4th/")
+    except OSError as e:
+        print(e)
+        exit(0)
         pass
 
-    for i in tqdm(range(0, num_samples, 1)):
-        nbar = 96
+    for ii in tqdm(range(0, num_samples, 1)):
+        nbar = 32
         # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
-        din = reals_num[0][:, 0:1, 0:4]
+        random_start = torch.randint(0, 8, [1]).item()
+        din = reals_num[0][:, random_start:random_start+1, 0:4]
         din = din.reshape([1, opt.ntrack, -1])
         in_4th = din
         G_z = din
         song = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
-        print("din length: ", din.shape[2])
 
-        for l in range(nbar):
+        song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
+        song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
+        # print("din length: ", din.shape[2])
+
+        for l in range(nbar*4):
             for i, G in enumerate(Gs):
-                G_z, _ = G(G_z, draw_concat=True)
+                G_z, _ = G(G_z, mode="topP")
                 if i == 0:
                     in_4th = G_z
-                    print("{}-th length: ".format(i), in_4th.shape[2])
+                if i == 1:
+                    in_8th = G_z
                 if i != 2:
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale)
             # print(G_z)
-            song[:, :, l*16:(l+1)*16] = G_z[:, :, -16:]
+            song[:, :, l*4:(l+1)*4] = G_z[:, :, -4:]
+            song8th[:, :, l*2:(l+1)*2] = in_8th[:, :, -2:]
+            song4th[:, :, l*1:(l+1)*1] = G_z[:, :, -1:]
             G_z = in_4th
         
-        song = song.reshape([1, opt.ntrack, opt.nbar, -1]) # [1, track, nbar, time]
+        song = song.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
         song = lib.num2song(song[0])[None, ] # [1, track, nbar, length, pitch]
-            
-        save_image('%s/%d.png' % (dir2save, i), song.copy(), (1,1))
-        multitrack = save_midi('%s/%d.mid' % (dir2save, i), song.copy(), opt)
+
+        song8th = song8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+        song8th = lib.num2song(song8th[0])[None, ] # [1, track, nbar, length, pitch]
+
+        song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+        song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
+
+        # 16th
+        pic = save_image('%s/%d.png' % (dir2save, ii), song.copy(), (1,1))
+        if wandb_enable == True:
+            wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
+        multitrack = save_midi('%s/%d.mid' % (dir2save, ii), song.copy(), opt)
+
+        # 8th
+        pic = save_image('%s/%d.png' % (dir2save+"/8th", ii), song8th.copy(), (1,1))
+        # if wandb_enable == True:
+        #     wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
+        multitrack = save_midi('%s/%d.mid' % (dir2save+"/8th", ii), song8th.copy(), opt)
+
+        # 4th
+        pic = save_image('%s/%d.png' % (dir2save+"/4th", ii), song4th.copy(), (1,1))
+        # if wandb_enable == True:
+        #     wandb.log({"output_image[%d]"%ii: wandb.Image(pic)})
+        multitrack = save_midi('%s/%d.mid' % (dir2save+"/4th", ii), song4th.copy(), opt)

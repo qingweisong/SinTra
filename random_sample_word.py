@@ -28,10 +28,10 @@ if __name__ == '__main__':
         elif opt.mode == 'random_samples_arbitrary_sizes':
             print('random samples for image %s at size: scale_h=%f, scale_v=%f, already exist' % (opt.input_phrase, opt.scale_h, opt.scale_v))
     else:
-        try:
-            os.makedirs(dir2save)
-        except OSError:
-            pass
+        # try:
+        #     os.makedirs(dir2save)
+        # except OSError:
+        #     pass
 
         if opt.input_dir == 'array':
             real_ = functions.load_phrase_from_npy(opt)
@@ -43,9 +43,9 @@ if __name__ == '__main__':
         if opt.input_dir == 'JSB-Chorales-dataset':
             real_ = functions.load_phrase_from_pickle(opt)
 
-        opt.ntrack = real_.shape[1]
-        opt.npitch = real_.shape[4]
+        opt.ntrack = real_.shape[0]
+        opt.npitch = real_.shape[3]
         opt.tempo = 120
 
         Gs = functions.load_trained_Gs(opt)
-        SMGAN_generate_word(Gs, opt)
+        SMGAN_generate_word(Gs, opt, wandb_enable=False)

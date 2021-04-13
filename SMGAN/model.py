@@ -93,6 +93,12 @@ class TransformerBlock(nn.Module):
 
         self.sine_position_encoder = PositionalEncoding(ninp)
 
+        # handle track dim
+        self.track_conv1 = nn.Conv2d(track, 64, 1)
+        self.track_conv2 = nn.Conv2d(64, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 64, 1)
+        self.track_deconv2 = nn.Conv2d(64, track, 1)
+
         # embeding
         # 1st: pitch -> 64 -> 32 -> 1
         # 2rd: track -> feature
@@ -105,7 +111,7 @@ class TransformerBlock(nn.Module):
         # deocder
         self.decoder = nn.Linear(ninp, nword)
 
-        # self.init_weights()
+        self.init_weights()
 
     def _generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
@@ -117,6 +123,14 @@ class TransformerBlock(nn.Module):
         # self.encoder.weight.data.uniform_(-initrange, initrange)
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
+        self.track_conv1.bias.data.zero_()
+        self.track_conv1.weight.data.uniform_(-initrange, initrange)
+        self.track_conv2.bias.data.zero_()
+        self.track_conv2.weight.data.uniform_(-initrange, initrange)
+        self.track_deconv1.bias.data.zero_()
+        self.track_deconv1.weight.data.uniform_(-initrange, initrange)
+        self.track_deconv2.bias.data.zero_()
+        self.track_deconv2.weight.data.uniform_(-initrange, initrange)
 
     # def forward(self, src):
     #     if self.src_mask is None or self.src_mask.size(0) != len(src):
@@ -130,11 +144,27 @@ class TransformerBlock(nn.Module):
     #     output = self.decoder(output)
     #     return output
 
-    def forward(self, img, draw_concat=False): # input: 1, track, length
-        img = img.long().cuda()
-        img = img.permute(0, 2, 1).reshape(1, -1) # 1, length*track
+    def topP_sampling(self, x, p=0.8): # 1, track, length, nword
+        xp = F.softmax(x, dim=-1) # 1, track, length, nword
+        topP, indices = torch.sort(x, dim=-1, descending=True)
+        cumsum = torch.cumsum(topP, dim=-1)
+        mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+        minP, indices = torch.min(mask, dim=-1, keepdim=True)
+        valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+        sample = torch.distributions.Categorical(valid_p).sample()
+        return sample # 1, track, length
 
-        seq_len = img.shape[1]
+    def forward(self, img, mode, p): # input: 1, track, length
+        img = img.long().cuda()
+
+        src = self.embeding(img) # 1, track, length, feature
+
+        src = self.track_conv1(src) # 1, 64, length, feature
+        src = self.track_conv2(src) # N, 1, length, feature
+        src = src[:, 0, :, :] # N, length, feature
+        src = src.permute(1, 0, 2) # length, N, feature
+
+        seq_len = src.shape[0]
 
         if self.src_mask is None or self.src_mask.size(0) != seq_len:
             device = img.device
@@ -142,30 +172,30 @@ class TransformerBlock(nn.Module):
             mask = mask.to(device)
             self.src_mask = mask
 
-        src = self.embeding(img).permute(1, 0, 2) # length, 1, feature
-
         src = src * math.sqrt(self.ninp)
         output = self.transformer_encoder(
             self.sine_position_encoder(src),
             self.src_mask
         ) # length, 1, feature
 
+        output = output.permute(1, 0, 2) # 1, length, feature
+        output = output[:, None, :, :] # 1, 1, length, feature
+        output = self.track_deconv1(output) # 1, 64, length, feature
+        output = self.track_deconv2(output) # 1, track, length, feature
 
-        output = self.decoder(output) # length(length*track), 1, nword
+        output = self.decoder(output) # N, track, length, nword
 
-        if draw_concat == True:
-            top1 = torch.zeros([output.shape[0], output.shape[1]]) # (time*track), 1
-            top1 = output.argmax(dim=2).permute(1, 0) #  1, length*track
-            top1 = top1.reshape([1, -1, self.track]) # 1, length, track
-            top1 = top1.permute(0, 2, 1) # 1, track, length
+        if mode == "top1":
+            top1 = output # N, track, length, nword
+            top1 = top1.argmax(dim=3) # N, track, length
             return top1 
+        elif mode == "topP":
+            sample = self.topP_sampling(output, p) # 1, track, length
+            return sample
+        elif mode == "nword":
+            output = output.permute(0, 3, 1, 2) # N, nword, track, length 
+            return output # N, nword, track, length
         
-        output = output.permute(1, 2, 0) # 1, nword, length
-        output = output.reshape(output.shape[0], output.shape[1], -1, self.track)
-        output = output.permute(0, 1, 3, 2)
-
-        return output # 1, nword, track, length
-
 
 # =================== Transformer END =====================================
 class D_transform(nn.Module):
@@ -183,8 +213,8 @@ class G_transform(nn.Module):
         super(G_transform, self).__init__()
         self.transformer = TransformerBlock(opt.ntrack, opt.nword)
     
-    def forward(self, x, y=None, mems=None, draw_concat=False):
-        x = self.transformer(x, draw_concat)
+    def forward(self, x, mem=None, mode=False, p=0.6):
+        x = self.transformer(x, mode, p)
         return x, None
 
 

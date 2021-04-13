@@ -43,27 +43,49 @@ def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
     return reals
 
 
-def batchify(song, nth=4):
+def batchify(song, nth=4, batch_length=8): # [1, track, bar*time]
     # [1, track, bar*time]
     # return [-1, 1, track, nth*4]
-    print(song.shape)
-    _, track, time = song.shape
-    src = song.reshape([1, track, -1, nth])
-    src = src.permute(2, 0, 1, 3) # N, 1, track, nth
+
+    # print(song.shape)
+    # _, track, time = song.shape
+    # src = song.reshape([1, track, -1, nth])
+    # src = src.permute(2, 0, 1, 3) # N, 1, track, nth
+
+    _, track, length = song.shape
+    assert length % (2*batch_length) == 0
+    src = song.reshape([1, track, batch_length, -1]) # [1, track, groups, len]
+    mid = song[:, :, int(src.shape[-1]/2):-int(src.shape[-1]/2)]
+    mid = mid.reshape([1, track, batch_length-1, -1])
+    assert src.shape[-1] > nth
+    assert mid.shape[-1] > nth
+    src = src.permute(2, 0, 1, 3) # groups, 1, track, len
+    mid = mid.permute(2, 0, 1, 3)
+
+    src = torch.cat((src, mid), dim=0)
+
     return src
 
-def get_batch(data, i):
-    assert i < data.shape[0]
-    src = data[i, :, :, :]
-    tgt = data[i+1, :, :, :]
-    return src, tgt 
+def get_batch(data, i, nth):
+    # assert i < data.shape[0]
+    # src = data[i, :, :, :]
+    # tgt = data[i+1, :, :, :] # 1, 1, track, len
+
+    step = int(nth/4) # 4th is 1; 8th is 2; 16th is 4
+    if (i*step+nth+step) > data.shape[3]:
+        print("get batch index out of range of data")
+        exit(0)
+    else:
+        src = data[:, 0, :, i*step:i*step+nth]                       # 4th:     1    2    3    4
+        tgt = data[:, 0, :, i*step+step:i*step+nth+step]             # 8th:    11   22   33   44
+        return src, tgt   #[N, track, len]                           # 16th: 1111 2222 3333 4444  
 
 def word_upsample(src, scale=2):
     """
     src: [1, track, length]
     """
-    _, track, length = src.shape
-    new = torch.zeros([1, track, length*scale])
+    N, track, length = src.shape
+    new = torch.zeros([N, track, length*scale])
     new[:, :, 0::scale] = src
     for i in range(1, scale):
         new[:, :, i::scale] = new[:, :, 0::scale]
@@ -85,14 +107,9 @@ def load_phrase_from_pickle(opt, all=False):
     opt.vel_max = [60]
     opt.vel_min = [60]
 
-    if all == False:
-        song = song.reshape([1, -1, 4, 16, 128])
-        song = song.transpose(1, 0, 2, 3, 4)
-        return song[1:2, :, :, :, :]
-    else:
-        # [track, all_bars, time, pitch]
-        song = song.reshape([1, -1, 16, 128])
-        return song
+    # [track, all_bars, time, pitch]
+    song = song.reshape([1, -1, 16, 128])
+    return song[:, :, :, :]
 
 
 def load_data_from_npz(opt):
@@ -183,7 +200,7 @@ def generate_dir2save(opt, time=None):
     if time is not None:
         real_time = "_" + time
     else:
-        real_time = opt.name
+        real_time = "_" + opt.name
     #TrainModels/
     if (opt.mode == 'train'):
         dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (

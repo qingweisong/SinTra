@@ -14,11 +14,6 @@ from tqdm import tqdm
 from SMGAN.utils import Lang
 import SMGAN.functions as functions
 
-wandb.init(
-    project="single-musegan-word",
-    config = {
-    }
-)
 
 lib = Lang("song")
 
@@ -36,12 +31,12 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'pianoroll':
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
-        real_ = functions.load_phrase_from_pickle(opt, all=True)
+        real_ = functions.load_phrase_from_pickle(opt)
 
-    print("Input real_ shape = ", real_.shape)
+    print(">> Input real_ shape = ", real_.shape)
 
     lib.addSong(real_) # for generating lib
-    print("Total words = ", lib.n_words)
+    print(">> Total words = ", lib.n_words)
     opt.nword = lib.n_words
     reals = functions.get_reals(real_, reals, 16, [4,8,16])
     reals_num = list(map(lambda x:lib.song2num(x), reals))
@@ -49,8 +44,6 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
 
     reals = reals_num
 
-    print(reals[0].shape)
-    opt.nbar = reals[0].shape[1]
 
     while num_scale < len(reals): #opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)
@@ -65,8 +58,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
         
         print("************* Save real_scale **************")
         real_scale = lib.num2song(functions.convert_image_np(reals[num_scale]))[None, ] # to np
-        print("current real_scale shape is : ", end ="")
-        print(real_scale.shape)
+        print(">> current real_scale shape is : ", real_scale.shape)
         merged = save_image('%s/real_scale.png' % (opt.outp), real_scale, (1, 1))
         save_midi('%s/real_scale.mid' % (opt.outp), real_scale, opt)
         # wandb.log({
@@ -108,7 +100,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
-    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[1600],gamma=opt.gamma)
+    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[3000],gamma=opt.gamma)
 
     errD2plot = []#损失
     errG2plot = []
@@ -118,16 +110,23 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     z_opt2plot = []#rec_loss
 
     print('********************Training start!********************')
-    dataset = batchify(real, int(4*(2**(len(Gs)))))
-    lowest_dataset = batchify(lowest_real, 4)
-    for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
-        for i in range(len(dataset) - 1):
-            _, tgt = get_batch(dataset, i) # 1, track, length
-            lowest_input, _ = get_batch(lowest_dataset, i)
+    dataset = batchify(real, int(4*(2**(len(Gs))))) # N, 1, track, length
+    lowest_dataset = batchify(lowest_real, 4) # N, 1, track, length
+    print(">>> the {}th stage, epoch is {}".format(
+        len(Gs),
+        (len(Gs)+1)*opt.niter
+    ))
+    for epoch in tqdm(range(opt.niter * (len(Gs) + 1))):#一阶段2000个epoch
+        assert (dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)) == int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)))
+        for i in range( int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs))) ):
+            _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # 1, track, length
+            lowest_input, _ = get_batch(lowest_dataset, i, 4)
+
             src = draw_concat(Gs, lowest_input, opt)
 
             netG.zero_grad()
-            output, _ = netG(src, None, draw_concat=False) # 1, nwork, track, length
+            # print("drawcat shape: ", src.shape)
+            output, _ = netG(src, mode="nword") # 1, nwork, track, length
             criterion = nn.CrossEntropyLoss()
             loss = criterion(output, tgt.long())
             loss.backward()
@@ -154,13 +153,14 @@ def draw_concat(Gs, in_s, opt):
     if len(Gs) > 0:##其他阶段
         for G in Gs:
             ########################################！！！！！！！！！！第一阶段噪声每track相同
-            G_z, _ = G(G_z, draw_concat=True)
+            G_z, _ = G(G_z, mode="top1")
             cur_scale = 2
             G_z = word_upsample(G_z, cur_scale)
     return G_z
 
 #初始化模型
 def init_models(opt):
+    print(">> Input model type:", opt.model_type)
     if opt.model_type == "transformer":
         netG = model.G_transform(opt).to(opt.device)
         netG.apply(model.weights_init)

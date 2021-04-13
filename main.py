@@ -5,7 +5,7 @@ from SMGAN.training_noGAN import *
 import SMGAN.functions as functions
 import numpy as np
 from SMGAN.image_io import *
-
+import wandb
 
 if __name__ == '__main__':
     parser = get_arguments()
@@ -30,6 +30,17 @@ if __name__ == '__main__':
         except OSError:
             pass
 
+    wandb.init(
+        project="dead",
+        config = {
+            "name": opt.name,
+            "niter": opt.niter,
+            "model_type": opt.model_type,
+            "path": dir2save,
+            "info": ""
+        }
+    )
+
 
     Gs = []
     Zs = []
@@ -51,8 +62,8 @@ if __name__ == '__main__':
     
     # import ipdb; ipdb.set_trace()
 
-    opt.ntrack = real_.shape[1]
-    opt.npitch = real_.shape[4]
+    opt.ntrack = real_.shape[0]
+    opt.npitch = real_.shape[3]
     opt.tempo = 120
 
     print("The num of instruments = %d" % opt.ntrack)
@@ -77,8 +88,8 @@ if __name__ == '__main__':
 
 
 
-    print('Training set size: %d' % real_.shape[0])
-    functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
+    # print('Training set size: %d' % real_.shape[0])
+    # functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
     trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
     SMGAN_generate_word(Gs, opt)
 
