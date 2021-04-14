@@ -306,15 +306,15 @@ class TransformerBlock_RGA(torch.nn.Module):
 
     def forward(self, img, mode, p=0.6):
 
-        img = img.long().cuda() # 1, track, length
+        img = img.long().cuda() # N, track, length
 
         tmp = img[:, 0, :]
         _, _, look_ahead_mask = utils.get_masked_with_pad_tensor(tmp.shape[1], tmp, tmp, -10)
 
-        src = self.embeding(img) # 1, track, length, feature
+        src = self.embeding(img) # N, track, length, feature
 
-        src = self.track_conv1(src) # 1, 16, length, feature
-        src = self.track_conv2(src) # 1, 1, length, feature
+        src = self.track_conv1(src) # N, 16, length, feature
+        src = self.track_conv2(src) # N, 1, length, feature
         src = src[:, 0, :, :] # N, length, feature
 
         src = src * math.sqrt(self.ninp)

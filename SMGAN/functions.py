@@ -44,42 +44,50 @@ def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
     return reals
 
 
-def batchify(song, nth=4, batch_length=8): # [1, track, bar*time]
+def batchify(song, nth=4, batch_size=4): # [1, track, bar*time]
     # [1, track, bar*time]
     # return [-1, 1, track, nth*4]
 
     # print(song.shape)
-    # _, track, time = song.shape
-    # src = song.reshape([1, track, -1, nth])
-    # src = src.permute(2, 0, 1, 3) # N, 1, track, nth
+    _, track, time = song.shape
 
-    _, track, length = song.shape
-    assert length % (2*batch_length) == 0
-    src = song.reshape([1, track, batch_length, -1]) # [1, track, groups, len]
-    mid = song[:, :, int(src.shape[-1]/2):-int(src.shape[-1]/2)]
-    mid = mid.reshape([1, track, batch_length-1, -1])
-    assert src.shape[-1] > nth
-    assert mid.shape[-1] > nth
-    src = src.permute(2, 0, 1, 3) # groups, 1, track, len
-    mid = mid.permute(2, 0, 1, 3)
-
-    src = torch.cat((src, mid), dim=0)
-
+    src = song.reshape([track, batch_size, -1, nth]) # track, N, bar L, nth
+    src = src.permute(2, 1, 0, 3) # L, N, track, nth
+    mid = song[:, :, int(src.shape[-1]*src.shape[-2]/2):-int(src.shape[-1]*src.shape[-2]/2)]
+    mid = mid.reshape([track, batch_size-1, -1, nth]) # track, N, L, nth
+    mid = mid.permute(2, 1, 0, 3) # L, N, track, nth
+    
+    src = torch.cat((src, mid), dim=1) # L, N, track, nth
     return src
 
-def get_batch(data, i, nth):
-    # assert i < data.shape[0]
-    # src = data[i, :, :, :]
-    # tgt = data[i+1, :, :, :] # 1, 1, track, len
+    # _, track, length = song.shape
+    # assert length % (2*batch_length) == 0
+    # src = song.reshape([1, track, batch_length, -1]) # [1, track, groups, len]
+    # mid = song[:, :, int(src.shape[-1]/2):-int(src.shape[-1]/2)]
+    # mid = mid.reshape([1, track, batch_length-1, -1])
+    # assert src.shape[-1] > nth
+    # assert mid.shape[-1] > nth
+    # src = src.permute(2, 0, 1, 3) # groups, 1, track, len
+    # mid = mid.permute(2, 0, 1, 3)
 
-    step = int(nth/4) # 4th is 1; 8th is 2; 16th is 4
-    if (i*step+nth+step) > data.shape[3]:
-        print("get batch index out of range of data")
-        exit(0)
-    else:
-        src = data[:, 0, :, i*step:i*step+nth]                       # 4th:     1    2    3    4
-        tgt = data[:, 0, :, i*step+step:i*step+nth+step]             # 8th:    11   22   33   44
-        return src, tgt   #[N, track, len]                           # 16th: 1111 2222 3333 4444  
+    # src = torch.cat((src, mid), dim=0)
+
+    # return src
+
+def get_batch(data, i, nth):
+    assert i < data.shape[0]
+    src = data[i, :, :, :]
+    tgt = data[i+1, :, :, :] # 1, N, track, len
+    return src, tgt
+
+    # step = int(nth/4) # 4th is 1; 8th is 2; 16th is 4
+    # if (i*step+nth+step) > data.shape[3]:
+    #     print("get batch index out of range of data")
+    #     exit(0)
+    # else:
+    #     src = data[:, 0, :, i*step:i*step+nth]                       # 4th:     1    2    3    4
+    #     tgt = data[:, 0, :, i*step+step:i*step+nth+step]             # 8th:    11   22   33   44
+    #     return src, tgt   #[N, track, len]                           # 16th: 1111 2222 3333 4444  
 
 def word_upsample(src, scale=2):
     """

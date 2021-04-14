@@ -110,16 +110,15 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     z_opt2plot = []#rec_loss
 
     print('********************Training start!********************')
-    dataset = batchify(real, int(4*(2**(len(Gs))))) # N, 1, track, length
-    lowest_dataset = batchify(lowest_real, 4) # N, 1, track, length
+    dataset = batchify(real, int(4*(2**(len(Gs))))) # L, N, track, length
+    lowest_dataset = batchify(lowest_real, 4) # L, N, track, length
     print(">>> the {}th stage, epoch is {}".format(
         len(Gs),
         opt.niter
     ))
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
-        assert (dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)) == int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs)))
-        for i in range( int((dataset.shape[3] - int(4*(2**len(Gs))))/(2**len(Gs))) ):
-            _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # 1, track, length
+        for i in range(dataset.shape[0] - 1):
+            _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # N, track, length
             lowest_input, _ = get_batch(lowest_dataset, i, 4)
 
 

@@ -291,7 +291,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
     print("Total words = ", lib.n_words)
     opt.nword = lib.n_words
     reals = []
-    reals = functions.get_reals(real_, reals, 16, [4,8,16])
+    reals = functions.get_reals(real_, reals, 32, [4,8,16,32])
     reals_num = list(map(lambda x:lib.song2num(x), reals))
     reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, time
 
@@ -327,9 +327,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         song32th = torch.zeros([1, opt.ntrack, nbar*32], dtype=torch.long)
         # print("din length: ", din.shape[2])
 
-        for l in range(nbar*4):
+        for l in range(nbar):
             for i, G in enumerate(Gs):
-                G_z, _ = G(G_z, mode="topP")
+                G_z, _ = G(G_z, mode="topP", p=0.5)
                 if i == 0:
                     in_4th = G_z
                 if i == 1:
@@ -339,11 +339,10 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                 if i != (len(Gs)-1):
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale)
-            # print(G_z)
-            song32th[:, :, l*8:(l+1)*8] = G_z[:, :, -8:]
-            song16th[:, :, l*4:(l+1)*4] = in_16th[:, :, -4:]
-            song8th[:, :, l*2:(l+1)*2] = in_8th[:, :, -2:]
-            song4th[:, :, l*1:(l+1)*1] = G_z[:, :, -1:]
+            song32th[:, :, l*8*4:(l+1)*8*4] = G_z[:, :, :]
+            song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
+            song8th[:, :,  l*2*4:(l+1)*2*4] = in_8th[:, :, :]
+            song4th[:, :,  l*1*4:(l+1)*1*4] = in_4th[:, :, :]
             G_z = in_4th
         
         song32th = song32th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
