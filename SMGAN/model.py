@@ -6,7 +6,7 @@ from torchvision.models import resnet18
 import math
 
 import SMGAN.relativeAttention as rga
-import SMGAN.model_xl as xl
+import SMGAN.xl as xl
 
 #卷积块
 class ConvBlock(nn.Sequential):
@@ -244,56 +244,61 @@ class G_transformRGA(nn.Module):
         x = self.transformer(x, mode, p)
         return x, None
 
+# =============================
+# transformerXL
+# =============================
 
 class D_transformXL(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, length):
         super(D_transformXL, self).__init__()
-        self.transformer = xl.TransformerXL(
-            opt.ntrack, 
-            # n_layer, 
-            # n_head, 
-            # d_model, 
-            # d_head, 
-            # d_inner,
-            # dropout, 
-            # dropatt
-            tgt_len=128,
-            mem_len=128,
-            ext_len=0,
+        self.transformer = xl.MemTransformerLM(
+            n_token=opt.nword,
+            n_layer=6,
+            n_track=opt.ntrack,
+            n_head=4,
+            d_model=256,
+            d_head=32,
+            d_inner=1024,
+            dropout=0.1,
+            dropatt=0.0,
+
+            tgt_len=length,
+            mem_len=length,
+            ext_len=0
             )
 
+    def forward(self,x, mode, p, mems=None):
 
-    def forward(self,x, mems=None):
-
-        x, mems = self.transformer(x, mems)
+        x, mems = self.transformer(x, mode, p, *mems)
 
         return x, mems
 
 
 class G_transformXL(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, length):
         super(G_transformXL, self).__init__()
-        self.transformer = xl.TransformerXL(
-            opt.ntrack, 
-            # n_layer, 
-            # n_head, 
-            # d_model, 
-            # d_head, 
-            # d_inner,
-            # dropout, 
-            # dropatt.
-            tgt_len=128,
-            mem_len=128,
-            ext_len=0,
+
+        self.transformer = xl.MemTransformerLM(
+            n_token=opt.nword,
+            n_track=opt.ntrack,
+            n_layer=6,
+            n_head=8,
+            d_model=256,
+            d_head=32,
+            d_inner=1024,
+            dropout=0.09,
+            dropatt=0.0,
+
+            tgt_len=length,
+            mem_len=length,
+            ext_len=0
             )
 
-    def forward(self,x,y, mems=None):
+    def forward(self,x, mode, p, mems):
 
-        x, memes = self.transformer(x, mems)
+        x, memes = self.transformer(x, mode, p, *mems)
 
-        ind = int((y.shape[2]-x.shape[2])/2)
-        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]#??????????
-        return x+y, memes
+        return x, memes
 
 
 

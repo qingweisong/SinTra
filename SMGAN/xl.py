@@ -493,7 +493,7 @@ class AdaptiveEmbedding(nn.Module):
         return embed
 
 class MemTransformerLM(nn.Module):
-    def __init__(self, n_token, n_layer, n_head, d_model, d_head, d_inner,
+    def __init__(self, n_token, n_track, n_layer, n_head, d_model, d_head, d_inner,
                  dropout, dropatt, tie_weight=True, d_embed=None, 
                  div_val=1, tie_projs=[False], pre_lnorm=False,
                  tgt_len=None, ext_len=None, mem_len=None, 
@@ -511,6 +511,15 @@ class MemTransformerLM(nn.Module):
 
         self.word_emb = AdaptiveEmbedding(n_token, d_embed, d_model, cutoffs, 
                                           div_val=div_val)
+
+        # handle track dim
+        self.n_track = n_track
+        self.track_conv1 = nn.Conv2d(n_track, 16, 1)
+        self.track_conv2 = nn.Conv2d(16, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 16, 1)
+        self.track_deconv2 = nn.Conv2d(16, n_track, 1)            
+
+        self.decoders = nn.ModuleList([nn.Linear(d_model, n_token) for i in range(n_track)])
 
         self.drop = nn.Dropout(dropout)
 
@@ -639,10 +648,29 @@ class MemTransformerLM(nn.Module):
 
         return new_mems
 
-    def _forward(self, dec_inp, mems=None):
-        qlen, bsz = dec_inp.size()
+    def topP_sampling(self, x, p=0.8): # 1, track, length, nword
+        xp = F.softmax(x, dim=-1) # 1, track, length, nword
+        topP, indices = torch.sort(x, dim=-1, descending=True)
+        cumsum = torch.cumsum(topP, dim=-1)
+        mask = torch.where(cumsum < p, topP, torch.ones_like(topP)*1000)
+        minP, indices = torch.min(mask, dim=-1, keepdim=True)
+        valid_p = torch.where(xp<minP, torch.ones_like(x)*(1e-10), xp)
+        sample = torch.distributions.Categorical(valid_p).sample()
+        return sample # 1, track, length
 
-        word_emb = self.word_emb(dec_inp)
+    def _forward(self, dec_inp, mems=None):
+
+        dec_inp = dec_inp.cuda()
+
+        word_emb = self.word_emb(dec_inp.long()) # [1, track, length, feature]
+        src = word_emb
+        src = self.track_conv1(src) # 1, 16, length, feature
+        src = self.track_conv2(src) # 1, 1, length, feature
+        src = src[:, 0, :, :] # N, length, feature
+        src = src.permute(1, 0, 2) # length, N, feature
+        word_emb = src
+        qlen, bsz, _ = word_emb.size()
+
 
         mlen = mems[0].size(0) if mems is not None else 0
         klen = mlen + qlen
@@ -728,36 +756,92 @@ class MemTransformerLM(nn.Module):
                                  mems=mems_i)
                 hids.append(core_out)
 
-        core_out = self.drop(core_out)
+        core_out = self.drop(core_out) # length, 1, feature
+        core_out = core_out.permute(1, 0, 2) # 1, length, feature
+        core_out = core_out[:, None, :, :]  # 1, 1, length, feature
+        core_out = self.track_deconv1(core_out) # 1, 16, length, feature
+        core_out = self.track_deconv2(core_out) # 1, track, length, feature
+
+        outputs = []
+        for i in range(self.n_track):
+            a_track = self.decoders[i](core_out[:, i, :, :]) # 1, length, nword
+            a_track = a_track[:, None, :, :] # 1, 1, length, nword
+            outputs.append(a_track)
+
+        output = torch.cat(outputs, dim=1) # 1, track, length, nword
 
         new_mems = self._update_mems(hids, mems, mlen, qlen)
 
-        return core_out, new_mems
+        return output, new_mems
 
-    def forward(self, data, target, *mems):
+    def forward(self, data, mode, p, *mems):
         # nn.DataParallel does not allow size(0) tensors to be broadcasted.
         # So, have to initialize size(0) mems inside the model forward.
         # Moreover, have to return new_mems to allow nn.DataParallel to piece
         # them together.
         if not mems: mems = self.init_mems()
 
-        tgt_len = target.size(0)
         hidden, new_mems = self._forward(data, mems=mems)
 
-        pred_hid = hidden[-tgt_len:]
-        if self.sample_softmax > 0 and self.training:
-            assert self.tie_weight
-            logit = sample_logits(self.word_emb,
-                self.out_layer.bias, target, pred_hid, self.sampler)
-            loss = -F.log_softmax(logit, -1)[:, :, 0]
-        else:
-            loss = self.crit(pred_hid.view(-1, pred_hid.size(-1)), target.view(-1))
-            loss = loss.view(tgt_len, -1)
+        if mode == "topP":
+            sample = self.topP_sampling(hidden, p) # 1, track, length
+            return sample, new_mems
+        elif mode == "top1":
+            top1 = hidden # 1, track, length, nword
+            top1 = top1.argmax(dim=3) # 1, track, length
+            return top1, new_mems
+        elif mode == "nword":
+            output = hidden.permute(0, 3, 1, 2) # 1, nword, track, length
+            return output, new_mems # 1, nword, track, length
 
-        if new_mems is None:
-            return [loss]
-        else:
-            return [loss] + new_mems
+def init_weight(weight):
+    # if args.init == 'uniform':
+    #     nn.init.uniform_(weight, -args.init_range, args.init_range)
+    # elif args.init == 'normal':
+    nn.init.normal_(weight, 0.0, 0.02)
+
+def init_bias(bias):
+    nn.init.constant_(bias, 0.0)
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        if hasattr(m, 'weight') and m.weight is not None:
+            init_weight(m.weight)
+        if hasattr(m, 'bias') and m.bias is not None:
+            init_bias(m.bias)
+    elif classname.find('AdaptiveEmbedding') != -1:
+        if hasattr(m, 'emb_projs'):
+            for i in range(len(m.emb_projs)):
+                if m.emb_projs[i] is not None:
+                    nn.init.normal_(m.emb_projs[i], 0.0, 0.01)
+    elif classname.find('Embedding') != -1:
+        if hasattr(m, 'weight'):
+            init_weight(m.weight)
+    elif classname.find('ProjectedAdaptiveLogSoftmax') != -1:
+        if hasattr(m, 'cluster_weight') and m.cluster_weight is not None:
+            init_weight(m.cluster_weight)
+        if hasattr(m, 'cluster_bias') and m.cluster_bias is not None:
+            init_bias(m.cluster_bias)
+        if hasattr(m, 'out_projs'):
+            for i in range(len(m.out_projs)):
+                if m.out_projs[i] is not None:
+                    nn.init.normal_(m.out_projs[i], 0.0, args.proj_init_std)
+    elif classname.find('LayerNorm') != -1:
+        if hasattr(m, 'weight'):
+            nn.init.normal_(m.weight, 1.0, 0.02)
+        if hasattr(m, 'bias') and m.bias is not None:
+            init_bias(m.bias)
+    elif classname.find('TransformerLM') != -1:
+        if hasattr(m, 'r_emb'):
+            init_weight(m.r_emb)
+        if hasattr(m, 'r_w_bias'):
+            init_weight(m.r_w_bias)
+        if hasattr(m, 'r_r_bias'):
+            init_weight(m.r_r_bias)
+        if hasattr(m, 'r_bias'):
+            init_bias(m.r_bias)
 
 if __name__ == '__main__':
     import argparse

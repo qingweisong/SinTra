@@ -291,7 +291,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
     print("Total words = ", lib.n_words)
     opt.nword = lib.n_words
     reals = []
-    reals = functions.get_reals(real_, reals, 32, [4,8,16,32])
+    reals = functions.get_reals(real_, reals, 16, [4,8,16])
     reals_num = list(map(lambda x:lib.song2num(x), reals))
     reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, time
 
@@ -302,9 +302,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
 
     try:
         os.makedirs(dir2save)
-        os.makedirs(dir2save+"/32th/")
         os.makedirs(dir2save+"/16th/")
-        os.makedirs(dir2save+"/generate/")
         os.makedirs(dir2save+"/8th/")
         os.makedirs(dir2save+"/4th/")
     except OSError as e:
@@ -324,12 +322,13 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
         song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
         song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
-        song32th = torch.zeros([1, opt.ntrack, nbar*32], dtype=torch.long)
         # print("din length: ", din.shape[2])
 
+        concat_mems = [tuple() for _ in range(len(Gs))]
         for l in range(nbar):
             for i, G in enumerate(Gs):
-                G_z, _ = G(G_z, mode="topP", p=0.5)
+                G_z, new_mem = G(G_z, mode="topP", p=0.4, mems=concat_mems[i])
+                concat_mems[i] = new_mem
                 if i == 0:
                     in_4th = G_z
                 if i == 1:
@@ -339,15 +338,11 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                 if i != (len(Gs)-1):
                     cur_scale = 2
                     G_z = word_upsample(G_z, cur_scale)
-            song32th[:, :, l*8*4:(l+1)*8*4] = G_z[:, :, :]
             song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
             song8th[:, :,  l*2*4:(l+1)*2*4] = in_8th[:, :, :]
             song4th[:, :,  l*1*4:(l+1)*1*4] = in_4th[:, :, :]
             G_z = in_4th
         
-        song32th = song32th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
-        song32th = lib.num2song(song32th[0])[None, ] # [1, track, nbar, length, pitch]
-
         song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
         song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
@@ -357,7 +352,6 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
         song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
 
-        generate = song32th[:, :, :, ::2, :]
 
 
         """
@@ -369,9 +363,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             |               8 | 16 | 32 32th | 2s   |
         """
 
-        save_pic_midi(generate, dir2save+"/generate", ii, opt, 4, False | wandb_enable)
-        save_pic_midi(song32th, dir2save+"/32th",     ii, opt, 8, False)
-        save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False)
+        save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
         save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
         save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
 

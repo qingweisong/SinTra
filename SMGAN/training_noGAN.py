@@ -38,7 +38,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
     lib.addSong(real_) # for generating lib
     print(">> Total words = ", lib.n_words)
     opt.nword = lib.n_words
-    reals = functions.get_reals(real_, reals, 32, [4,8,16,32])
+    reals = functions.get_reals(real_, reals, 16, [4,8,16])
     reals_num = list(map(lambda x:lib.song2num(x), reals))
     reals_num = list(map(lambda x: functions.np2torch(x), reals_num)) # track, bar, time
 
@@ -67,7 +67,7 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
         # )
 
         #初始化D,G模型       打印网络结构
-        G_curr, D_curr= init_models(opt)
+        G_curr, D_curr= init_models(opt, (2**num_scale)*4)
         if (nfc_prev == opt.nfc):#使num_scale-1从0开始  加载上一阶段训练好的模型
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out, num_scale-1)))
             D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out, num_scale-1)))
@@ -100,7 +100,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
-    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[2500],gamma=opt.gamma)
+    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[100],gamma=opt.gamma)
 
     errD2plot = []#损失
     errG2plot = []
@@ -117,16 +117,17 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
         opt.niter
     ))
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
+        concat_mems = [tuple() for _ in range(len(Gs))]
+        memG = tuple()
         for i in range(dataset.shape[0] - 1):
-            _, tgt = get_batch(dataset, i, int(4*(2**(len(Gs))))) # N, track, length
-            lowest_input, _ = get_batch(lowest_dataset, i, 4)
+            _, tgt = get_batch(dataset, i) # N, track, length
+            lowest_input, _ = get_batch(lowest_dataset, i)
 
-
-            src = draw_concat(Gs, lowest_input, opt)
+            src = draw_concat(Gs, lowest_input, concat_mems, opt)
 
             netG.zero_grad()
-            # print("drawcat shape: ", src.shape)
-            output, _ = netG(src, mode="nword") # 1, nwork, track, length
+
+            output, memG = netG(src, mode="nword", p=0.6, mems=memG) # 1, nwork, track, length
 
             criterion = nn.CrossEntropyLoss()
             loss = criterion(output, tgt.long())
@@ -143,18 +144,19 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     return netG
 
 
-def draw_concat(Gs, in_s, opt):
+def draw_concat(Gs, in_s, concat_mems, opt):
     G_z = in_s#第一阶段G_z=in_s(图片大小)
     if len(Gs) > 0:##其他阶段
-        for G in Gs:
+        for i, G in enumerate(Gs):
             ########################################！！！！！！！！！！第一阶段噪声每track相同
-            G_z, _ = G(G_z, mode="top1")
+            G_z, new_mem = G(G_z, mode="top1", p=False, mems=concat_mems[i])
+            concat_mems[i] = new_mem
             cur_scale = 2
             G_z = word_upsample(G_z, cur_scale)
     return G_z
 
 #初始化模型
-def init_models(opt):
+def init_models(opt, length):
     print(">> Input model type:", opt.model_type)
     if opt.model_type == "transformer":
         netG = model.G_transform(opt).to(opt.device)
@@ -180,16 +182,18 @@ def init_models(opt):
         if opt.netD != '':
             netD.load_state_dict(torch.load(opt.netD))
         # print(netD)#打印网络结构
-    elif opt.model_type == "transformerXL":
+    elif opt.model_type == "xl":
 
-        netG = model.G_transformXL(opt).to(opt.device)
-        netG.apply(model.weights_init)
+        netG = model.G_transformXL(opt, length).to(opt.device)
+        netG.transformer.apply(model.xl.weights_init)
+        netG.transformer.word_emb.apply(model.xl.weights_init)
         if opt.netG != '':#若训练过程中断, 再次训练可接上次(一般不进入)
             netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
         # print(netG)#打印网络结构
 
-        netD = model.D_transformXL(opt).to(opt.device)
-        netD.apply(model.weights_init)
+        netD = model.D_transformXL(opt,length).to(opt.device)
+        netD.transformer.apply(model.xl.weights_init)
+        netD.transformer.word_emb.apply(model.xl.weights_init)
         if opt.netD != '':
             netD.load_state_dict(torch.load(opt.netD))
         # print(netD)#打印网络结构
