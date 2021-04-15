@@ -33,6 +33,9 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
 
+    real_ = midi2np(opt)
+    real_ = midiArrayReshape(real_, opt)
+
     print(">> Input real_ shape = ", real_.shape)
 
     lib.addSong(real_) # for generating lib

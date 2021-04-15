@@ -285,6 +285,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
 
+    real_ = midi2np(opt)
+    real_ = midiArrayReshape(real_, opt)
+
     print("Input real_ shape = ", real_.shape)
 
     lib.addSong(real_) # for generating lib
@@ -327,7 +330,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         concat_mems = [tuple() for _ in range(len(Gs))]
         for l in range(nbar):
             for i, G in enumerate(Gs):
-                G_z, new_mem = G(G_z, mode="topP", p=0.4, mems=concat_mems[i])
+                G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
                 concat_mems[i] = new_mem
                 if i == 0:
                     in_4th = G_z

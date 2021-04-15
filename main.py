@@ -59,6 +59,9 @@ if __name__ == '__main__':
         real_ = functions.load_phrase_from_npz(opt)
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
+
+    real_ = midi2np(opt)
+    real_ = midiArrayReshape(real_, opt)
     
     # import ipdb; ipdb.set_trace()
 

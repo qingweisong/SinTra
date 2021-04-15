@@ -43,6 +43,9 @@ if __name__ == '__main__':
         if opt.input_dir == 'JSB-Chorales-dataset':
             real_ = functions.load_phrase_from_pickle(opt)
 
+        real_ = midi2np(opt)
+        real_ = midiArrayReshape(real_, opt)
+
         opt.ntrack = real_.shape[0]
         opt.npitch = real_.shape[3]
         opt.tempo = 120

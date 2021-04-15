@@ -17,20 +17,32 @@ else
 	@echo "please define CUDA"
 	@exit 1
 endif
-
+ifdef DIR
+	@echo "DIR is $(DIR)"
+else
+	@echo "please define DIR"
+	@exit 1
+endif
+ifdef FILE
+	@echo "FILE is $(FILE)"
+else
+	@echo "please define FILE"
+	@exit 1
+endif
+# c-rnn-gan-master/data/classical/sor 987study16.mid
 default:
 	echo $(NAME)
 
 run: train
 
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
 
 train_pickle: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
 
 test: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir midi --input_phrase ./3000adamno_l.mid --fs 8 --mode random_samples --name $(NAME)_$(TYPE)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE)
 
 test_pickle: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(TYPE)
