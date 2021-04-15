@@ -35,18 +35,28 @@ default:
 
 run: train
 
+# multi stage
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
-
-train_pickle: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single False
 
 test: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE) --single False
+
+# single stage
+train_single: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name SS_$(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single True
+
+test_single: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name SS_$(NAME)_$(TYPE) --single True
+
+# pickle
+train_pickle: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
 
 test_pickle: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(TYPE)
 
+# clean files
 cleanModels:
 	rm TrainedModels/jsb-chorales-16th_$(NAME)_$(TYPE) -rf
 

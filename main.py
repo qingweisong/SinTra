@@ -1,3 +1,4 @@
+#!/home/sqw/anaconda3/envs/nlp/bin/python
 from config import get_arguments
 from SMGAN.manipulate import *
 # from SMGAN.training import *
@@ -14,6 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', help='task to be done', default='train')
     parser.add_argument('--name', help='describe this time ', default='train')
     parser.add_argument('--model_type', help='describe this time ', default='transformerXL')
+    parser.add_argument('--single', type=bool, help='describe this time', required=False)
     opt = parser.parse_args()
 
     # init fixed parameters
@@ -93,7 +95,7 @@ if __name__ == '__main__':
 
     # print('Training set size: %d' % real_.shape[0])
     # functions.adjust_scales2phrase(real_, opt)#返回real (max)  (1, 4, , , 8)并得到opt.scale_factor和opt.scale1
-    trainWOGAN(opt, Gs, Zs, reals, NoiseAmp)
+    trainWOGAN(opt, Gs, Zs, reals, NoiseAmp, single=opt.single)
     SMGAN_generate_word(Gs, opt)
 
     # scale_v = 2

@@ -17,7 +17,7 @@ import SMGAN.functions as functions
 
 lib = Lang("song")
 
-def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
+def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp, single=False):
     print("************** start training ****************")
     in_s = 0#
     num_scale = 0
@@ -47,6 +47,10 @@ def trainWOGAN(opt, Gs, Zs, reals, NoiseAmp):
 
     reals = reals_num
 
+    if single == True:
+        num_scale = len(reals) - 1
+    else:
+        num_scale = 0
 
     while num_scale < len(reals): #opt.stop_scale + 1:#5
         opt.nfc = min(opt.nfc_init * pow(2, math.floor(num_scale / 4)), 128)#32 (0-3)  64 (4-7) 128 (8-无穷大阶段)

@@ -24,6 +24,7 @@ import sys
 import muspy
 from tqdm import tqdm
 import wandb
+from kldiv import get_kldiv
 
 def generate_config(opt):
     config = {}
@@ -312,61 +313,141 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         print(e)
         exit(0)
         pass
+    
+    if opt.single == False:
+        all_kl = []
+        all_cover = []
+        for ii in tqdm(range(0, num_samples, 1)):
+            nbar = 32
+            # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
+            random_start = torch.randint(0, 8, [1]).item()
+            din = reals_num[0][:, random_start:random_start+1, 0:4]
+            din = din.reshape([1, opt.ntrack, -1])
+            in_4th = din
+            G_z = din
 
-    for ii in tqdm(range(0, num_samples, 1)):
-        nbar = 32
-        # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
-        random_start = torch.randint(0, 8, [1]).item()
-        din = reals_num[0][:, random_start:random_start+1, 0:4]
-        din = din.reshape([1, opt.ntrack, -1])
-        in_4th = din
-        G_z = din
+            song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
+            song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
+            song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
+            # print("din length: ", din.shape[2])
 
-        song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
-        song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
-        song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
-        # print("din length: ", din.shape[2])
+            concat_mems = [tuple() for _ in range(len(Gs))]
+            for l in range(nbar):
+                for i, G in enumerate(Gs):
+                    G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
+                    concat_mems[i] = new_mem
+                    if i == 0:
+                        in_4th = G_z
+                    if i == 1:
+                        in_8th = G_z
+                    if i == 2:
+                        in_16th = G_z
+                    if i != (len(Gs)-1):
+                        cur_scale = 2
+                        G_z = word_upsample(G_z, cur_scale)
+                song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
+                song8th[:, :,  l*2*4:(l+1)*2*4] = in_8th[:, :, :]
+                song4th[:, :,  l*1*4:(l+1)*1*4] = in_4th[:, :, :]
+                G_z = in_4th
+            
+            song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
-        concat_mems = [tuple() for _ in range(len(Gs))]
-        for l in range(nbar):
-            for i, G in enumerate(Gs):
-                G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
-                concat_mems[i] = new_mem
-                if i == 0:
-                    in_4th = G_z
-                if i == 1:
-                    in_8th = G_z
-                if i == 2:
+            song8th = song8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song8th = lib.num2song(song8th[0])[None, ] # [1, track, nbar, length, pitch]
+
+            song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
+
+
+
+            """
+                | beat resolution | fs | what    | time |                                  
+                |-----------------+----+---------+------|
+                |               1 |  2 | 4 4th   | 2s   |
+                |               2 |  4 | 8 8th   | 2s   |
+                |               4 |  8 | 16 16th | 2s   |
+                |               8 | 16 | 32 32th | 2s   |
+            """
+
+            save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
+            save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
+            save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
+
+            pathA = '%s/16th/%d.mid' % (dir2save, ii)
+            pathB = 'training_data/%s/%s' % (opt.input_dir, opt.input_phrase)
+            kl, cover = get_kldiv(pathA, pathB)
+            all_cover.append(cover)
+            if kl != -1:
+                all_kl.append(kl)
+            else:
+                print("some tracks is null")
+        if len(all_kl) != 0:
+            print("kl: ", str(all_kl))
+            f = open("%s/kl.txt"%dir2save, "w")
+            f.write(str(all_kl) + "\n")
+            f.write(str(sum(all_kl) / len(all_kl)))
+            f.write(str(all_cover) + "\n")
+            f.write(str(sum(all_cover) / len(all_cover)) + "\n")
+            f.close()
+        else:
+            f = open("%s/kl.txt"%dir2save, "w")
+            f.write("None")
+            f.close()
+    else:
+        all_kl = []
+        all_cover = []
+        for ii in tqdm(range(0, num_samples, 1)):
+            nbar = 32
+            # din = torch.randint(1, (1, opt.ntrack, 4), dtype=torch.long).to("cuda")
+            random_start = torch.randint(0, 8, [1]).item()
+            din = reals_num[-1][:, random_start:random_start+1, 0:16]
+            din = din.reshape([1, opt.ntrack, -1])
+            in_16th = din
+            G_z = din
+
+            song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
+
+            concat_mems = [tuple() for _ in range(len(Gs))]
+            for l in range(nbar):
+                for i, G in enumerate(Gs):
+                    G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
+                    concat_mems[i] = new_mem
                     in_16th = G_z
-                if i != (len(Gs)-1):
-                    cur_scale = 2
-                    G_z = word_upsample(G_z, cur_scale)
-            song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
-            song8th[:, :,  l*2*4:(l+1)*2*4] = in_8th[:, :, :]
-            song4th[:, :,  l*1*4:(l+1)*1*4] = in_4th[:, :, :]
-            G_z = in_4th
-        
-        song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
-        song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
+                song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
+                G_z = in_16th
+            
+            song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
-        song8th = song8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
-        song8th = lib.num2song(song8th[0])[None, ] # [1, track, nbar, length, pitch]
+            """
+                | beat resolution | fs | what    | time |                                  
+                |-----------------+----+---------+------|
+                |               1 |  2 | 4 4th   | 2s   |
+                |               2 |  4 | 8 8th   | 2s   |
+                |               4 |  8 | 16 16th | 2s   |
+                |               8 | 16 | 32 32th | 2s   |
+            """
 
-        song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
-        song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
+            save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
 
-
-
-        """
-            | beat resolution | fs | what    | time |                                  
-            |-----------------+----+---------+------|
-            |               1 |  2 | 4 4th   | 2s   |
-            |               2 |  4 | 8 8th   | 2s   |
-            |               4 |  8 | 16 16th | 2s   |
-            |               8 | 16 | 32 32th | 2s   |
-        """
-
-        save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
-        save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
-        save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
-
+            pathA = '%s/16th/%d.mid' % (dir2save, ii)
+            pathB = 'training_data/%s/%s' % (opt.input_dir, opt.input_phrase)
+            kl, cover = get_kldiv(pathA, pathB)
+            all_cover.append(cover)
+            if kl != -1:
+                all_kl.append(kl)
+            else:
+                print("some tracks is null")
+        if len(all_kl) != 0:
+            print("kl: ", str(all_kl))
+            f = open("%s/kl.txt"%dir2save, "w")
+            f.write(str(all_kl) + "\n")
+            f.write(str(sum(all_kl) / len(all_kl)) + "\n")
+            f.write(str(all_cover) + "\n")
+            f.write(str(sum(all_cover) / len(all_cover)) + "\n")
+            f.close()
+        else:
+            f = open("%s/kl.txt"%dir2save, "w")
+            f.write("None")
+            f.close()

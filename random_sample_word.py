@@ -15,6 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('--scale_h', type=float, help='horizontal resize factor for random samples', default=1)
     parser.add_argument('--scale_v', type=float, help='vertical resize factor for random samples', default=1)
     parser.add_argument('--name', type=str, help='model name')
+    parser.add_argument('--single', type=bool, help='describe this time', required=False)
     opt = parser.parse_args()
     opt = functions.post_config(opt)
     dir2save = functions.generate_dir2save(opt)
