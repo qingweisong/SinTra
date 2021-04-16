@@ -58,6 +58,39 @@ def midi2np_reshape(path, fs=8, all=False):
         return data[:, 0:12, :, :] #[track, all_bar, time, pitch]
 
 
+def get_kldiv_2(midiA, midiB, libB):
+    """
+        [track, nbarm, 16]
+        [track, nbarm, 16]
+        libB
+    """
+
+    ntrack, nbar, length = midiB.shape
+
+    # cover
+    all_cover = []
+    for i in range(ntrack):
+        num_pitch_A = len(set(midiA[i, :, :].flatten().numpy()))
+        num_pitch_B = len(set(midiB[i, :, :].flatten().numpy()))
+        cover = abs(num_pitch_A - num_pitch_B)
+        all_cover.append(cover)
+    cover_score = sum(all_cover) / len(all_cover)
+
+    # kl
+    all_kl = []
+    for i in range(ntrack):
+        distribute_A = [1e-5] * libB.n_words
+        distribute_B = [1e-5] * libB.n_words
+        for v in set(midiA[i, :, :].flatten().numpy()):
+            distribute_A[int(v)] += 1
+        for v in set(midiB[i, :, :].flatten().numpy()):
+            distribute_B[int(v)] += 1
+        kl = F.kl_div(F.log_softmax(torch.tensor(distribute_A)[None,], dim=-1), F.softmax(torch.tensor(distribute_B)[None,], dim=-1), reduction="sum")
+        all_kl.append(kl.item())
+    kl_score = sum(all_kl) / len(all_kl)
+
+    return kl_score, cover_score
+
 
 def get_kldiv(pathA, pathB):
     """

@@ -15,8 +15,18 @@ if __name__ == '__main__':
     parser.add_argument('--mode', help='task to be done', default='train')
     parser.add_argument('--name', help='describe this time ', default='train')
     parser.add_argument('--model_type', help='describe this time ', default='transformerXL')
-    parser.add_argument('--single', type=bool, help='describe this time', required=False)
+    parser.add_argument('--single', action="store_true", help='single mode')
     opt = parser.parse_args()
+
+
+    if opt.single == True:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>> Single Model >>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    if opt.single == False:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>> Multi Stage Model >>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
     # init fixed parameters
     opt = functions.post_config(opt)

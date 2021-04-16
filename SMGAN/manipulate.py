@@ -24,7 +24,7 @@ import sys
 import muspy
 from tqdm import tqdm
 import wandb
-from kldiv import get_kldiv
+from kldiv import get_kldiv_2
 
 def generate_config(opt):
     config = {}
@@ -351,6 +351,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                 G_z = in_4th
             
             song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song16th_forkl = song16th[0]
             song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
             song8th = song8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
@@ -374,26 +375,19 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
             save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
 
-            pathA = '%s/16th/%d.mid' % (dir2save, ii)
-            pathB = 'training_data/%s/%s' % (opt.input_dir, opt.input_phrase)
-            kl, cover = get_kldiv(pathA, pathB)
+            
+            kl, cover = get_kldiv_2(song16th_forkl.cpu(), reals_num[-1].cpu(), lib)
+
             all_cover.append(cover)
-            if kl != -1:
-                all_kl.append(kl)
-            else:
-                print("some tracks is null")
-        if len(all_kl) != 0:
-            print("kl: ", str(all_kl))
-            f = open("%s/kl.txt"%dir2save, "w")
-            f.write(str(all_kl) + "\n")
-            f.write(str(sum(all_kl) / len(all_kl)))
-            f.write(str(all_cover) + "\n")
-            f.write(str(sum(all_cover) / len(all_cover)) + "\n")
-            f.close()
-        else:
-            f = open("%s/kl.txt"%dir2save, "w")
-            f.write("None")
-            f.close()
+            all_kl.append(kl)
+
+        print("kl: ", str(all_kl))
+        f = open("%s/kl.txt"%dir2save, "w")
+        f.write(str(all_kl) + "\n")
+        f.write(str(sum(all_kl) / len(all_kl)) + "\n")
+        f.write(str(all_cover) + "\n")
+        f.write(str(sum(all_cover) / len(all_cover)) + "\n")
+        f.close()
     else:
         all_kl = []
         all_cover = []
@@ -418,6 +412,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                 G_z = in_16th
             
             song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            song16th_forkl = song16th[0]
             song16th = lib.num2song(song16th[0])[None, ] # [1, track, nbar, length, pitch]
 
             """
@@ -430,24 +425,16 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             """
 
             save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
+            
+            kl, cover = get_kldiv_2(song16th_forkl.cpu(), reals_num[-1].cpu(), lib)
 
-            pathA = '%s/16th/%d.mid' % (dir2save, ii)
-            pathB = 'training_data/%s/%s' % (opt.input_dir, opt.input_phrase)
-            kl, cover = get_kldiv(pathA, pathB)
             all_cover.append(cover)
-            if kl != -1:
-                all_kl.append(kl)
-            else:
-                print("some tracks is null")
-        if len(all_kl) != 0:
-            print("kl: ", str(all_kl))
-            f = open("%s/kl.txt"%dir2save, "w")
-            f.write(str(all_kl) + "\n")
-            f.write(str(sum(all_kl) / len(all_kl)) + "\n")
-            f.write(str(all_cover) + "\n")
-            f.write(str(sum(all_cover) / len(all_cover)) + "\n")
-            f.close()
-        else:
-            f = open("%s/kl.txt"%dir2save, "w")
-            f.write("None")
-            f.close()
+            all_kl.append(kl)
+
+        print("kl: ", str(all_kl))
+        f = open("%s/kl.txt"%dir2save, "w")
+        f.write(str(all_kl) + "\n")
+        f.write(str(sum(all_kl) / len(all_kl)) + "\n")
+        f.write(str(all_cover) + "\n")
+        f.write(str(sum(all_cover) / len(all_cover)) + "\n")
+        f.close()

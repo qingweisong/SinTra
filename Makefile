@@ -37,17 +37,17 @@ run: train
 
 # multi stage
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single False
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
 
 test: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE) --single False
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE)
 
 # single stage
 train_single: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name SS_$(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single True
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name SS_$(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single
 
 test_single: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name SS_$(NAME)_$(TYPE) --single True
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name SS_$(NAME)_$(TYPE) --single
 
 # pickle
 train_pickle: hasname
