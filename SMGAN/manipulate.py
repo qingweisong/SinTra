@@ -313,6 +313,15 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         print(e)
         exit(0)
         pass
+
+    if opt.single == True:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>> Single Model >>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    if opt.single == False:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>> Multi Stage Model >>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     
     if opt.single == False:
         all_kl = []
@@ -334,7 +343,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             concat_mems = [tuple() for _ in range(len(Gs))]
             for l in range(nbar):
                 for i, G in enumerate(Gs):
-                    G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
+                    G_z, new_mem = G(G_z, mode="topP", p=0.3, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     if i == 0:
                         in_4th = G_z
@@ -405,7 +414,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             concat_mems = [tuple() for _ in range(len(Gs))]
             for l in range(nbar):
                 for i, G in enumerate(Gs):
-                    G_z, new_mem = G(G_z, mode="top1", p=0.4, mems=concat_mems[i])
+                    G_z, new_mem = G(G_z, mode="topP", p=0.4, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     in_16th = G_z
                 song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]

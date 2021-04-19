@@ -514,10 +514,10 @@ class MemTransformerLM(nn.Module):
 
         # handle track dim
         self.n_track = n_track
-        self.track_conv1 = nn.Conv2d(n_track, 16, 1)
-        self.track_conv2 = nn.Conv2d(16, 1, 1)
-        self.track_deconv1 = nn.Conv2d(1, 16, 1)
-        self.track_deconv2 = nn.Conv2d(16, n_track, 1)            
+        self.track_conv1 = nn.Conv2d(n_track, 128, 1)
+        self.track_conv2 = nn.Conv2d(128, 1, 1)
+        self.track_deconv1 = nn.Conv2d(1, 128, 1)
+        self.track_deconv2 = nn.Conv2d(128, n_track, 1)            
 
         self.decoders = nn.ModuleList([nn.Linear(d_model, n_token) for i in range(n_track)])
 

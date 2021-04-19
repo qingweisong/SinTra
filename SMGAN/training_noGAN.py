@@ -107,7 +107,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
-    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[100],gamma=opt.gamma)
+    # schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[100],gamma=opt.gamma)
+    schedulerG = optim.lr_scheduler.CosineAnnealingLR(optimizerG, opt.niter, eta_min=1e-6)
 
     errD2plot = []#损失
     errG2plot = []
@@ -126,6 +127,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         concat_mems = [tuple() for _ in range(len(Gs))]
         memG = tuple()
+        total_loss = 0
         for i in range(dataset.shape[0] - 1):
             _, tgt = get_batch(dataset, i) # N, track, length
             lowest_input, _ = get_batch(lowest_dataset, i)
@@ -138,12 +140,13 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
             criterion = nn.CrossEntropyLoss()
             loss = criterion(output, tgt.long())
-            loss.backward()
-            optimizerG.step()#网络参数更新
+            total_loss += loss
+        total_loss.backward()
+        optimizerG.step()#网络参数更新
 
-            wandb.log({
-                "loss [%d]"% len(Gs): loss.detach()}
-            )
+        wandb.log({
+            "loss [%d]"% len(Gs): total_loss.detach()}
+        )
 
         schedulerG.step()
 
