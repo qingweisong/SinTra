@@ -107,7 +107,8 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
     # setup optimizer
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
-    schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[100],gamma=opt.gamma)
+    # schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[250],gamma=opt.gamma)
+    schedulerG = optim.lr_scheduler.CosineAnnealingLR(optimizerG, opt.niter, eta_min=1e-6)
 
     errD2plot = []#损失
     errG2plot = []
@@ -126,6 +127,7 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
     for epoch in tqdm(range(opt.niter)):#一阶段2000个epoch
         concat_mems = [tuple() for _ in range(len(Gs))]
         memG = tuple()
+        loss = 0
         for i in range(dataset.shape[0] - 1):
             _, tgt = get_batch(dataset, i) # N, track, length
             lowest_input, _ = get_batch(lowest_dataset, i)
@@ -134,18 +136,17 @@ def train_single_scale(netD, netG, reals, Gs, Zs, in_s, NoiseAmp, opt, centers=N
 
             netG.zero_grad()
 
-            output, memG = netG(src, mode="nword", p=0.6, mems=memG) # 1, nwork, track, length
+            loss, memG = netG(src, mode="nword", p=0.6, tgt=tgt, mems=memG) # 1, nwork, track, length
+            loss += loss
 
-            criterion = nn.CrossEntropyLoss()
-            loss = criterion(output, tgt.long())
-            loss.backward()
-            optimizerG.step()#网络参数更新
-
-            wandb.log({
-                "loss [%d]"% len(Gs): loss.detach()}
-            )
-
-        schedulerG.step()
+        loss = loss.mean() / (dataset.shape[0] - 1)
+        loss.backward()
+        optimizerG.step()#网络参数更新
+        wandb.log({
+            "loss [%d]"% len(Gs): loss.detach()}
+        )
+        # print(loss)
+        schedulerG.step(epoch)
 
     functions.save_networks(netG, netD, opt)
     return netG
@@ -156,10 +157,11 @@ def draw_concat(Gs, in_s, concat_mems, opt):
     if len(Gs) > 0:##其他阶段
         for i, G in enumerate(Gs):
             ########################################！！！！！！！！！！第一阶段噪声每track相同
-            G_z, new_mem = G(G_z, mode="top1", p=False, mems=concat_mems[i])
+            G_z, new_mem = G(G_z, mode="top1", p=0.6, tgt=None, mems=concat_mems[i])
             concat_mems[i] = new_mem
             cur_scale = 2
-            G_z = word_upsample(G_z, cur_scale)
+            G_z = word_upsample(G_z, cur_scale).cuda()
+    
     return G_z
 
 #初始化模型
@@ -198,7 +200,7 @@ def init_models(opt, length):
             netG.load_state_dict(torch.load(opt.netG))#加载预训练模型
         # print(netG)#打印网络结构
 
-        netD = model.D_transformXL(opt,length).to(opt.device)
+        netD = model.D_transformXL(opt, length).to(opt.device)
         netD.transformer.apply(model.xl.weights_init)
         netD.transformer.word_emb.apply(model.xl.weights_init)
         if opt.netD != '':
@@ -223,24 +225,3 @@ def init_models(opt, length):
 
     return netG, netD
 
-
-# def init_models(opt):
-#     netG_t = model.Generator_temp(opt)
-#     netG_t = apply(model.weights_init)
-#     if opt.netG_t != '':#若训练过程中断, 再次训练可接上次
-#         netG.load_state_dict(torch.load(opt.netG_t))#加载预训练模型
-#     print(netG_t)#打印网络结构
-
-#     netG_b = model.Generator_bar(opt)
-#     netG_b = apply(model.weights_init)
-#     if opt.netG_b != '':#若训练过程中断, 再次训练可接上次
-#         netG.load_state_dict(torch.load(opt.netG_b))#加载预训练模型
-#     print(netG_b)#打印网络结构
-
-#     netD = model.Discriminator(opt)
-#     netD = apply(model.weights_init)
-#     if opt.netD != '':
-#         netD.load_state_dict(torch.load(opt.netD))
-#     print(netD)#打印网络结构
-
-#     return netG_t, netG_b, netD

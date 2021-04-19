@@ -283,20 +283,20 @@ class G_transformXL(nn.Module):
             n_track=opt.ntrack,
             n_layer=6,
             n_head=8,
-            d_model=256,
+            d_model=512,
             d_head=32,
             d_inner=1024,
-            dropout=0.09,
+            dropout=0.1,
             dropatt=0.0,
 
             tgt_len=length,
-            mem_len=length,
+            mem_len=length*4,
             ext_len=0
             )
 
-    def forward(self,x, mode, p, mems):
+    def forward(self,x, mode, p, tgt, mems):
 
-        x, memes = self.transformer(x, mode, p, *mems)
+        x, memes = self.transformer(x, mode, p, tgt, *mems)
 
         return x, memes
 

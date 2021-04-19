@@ -46,7 +46,6 @@ def get_reals(song, reals, in_scale=16, out_scale=[4, 8, 16]):  # all == True
 def batchify(song, nth=4):
     # [1, track, bar*time]
     # return [-1, 1, track, nth*4]
-    print(song.shape)
     _, track, time = song.shape
     src = song.reshape([1, track, -1, nth])
     src = src.permute(2, 0, 1, 3) # N, 1, track, nth
@@ -63,7 +62,7 @@ def word_upsample(src, scale=2):
     src: [1, track, length]
     """
     N, track, length = src.shape
-    new = torch.zeros([N, track, length*scale])
+    new = torch.zeros([N, track, length*scale], dtype=torch.float64)
     new[:, :, 0::scale] = src
     for i in range(1, scale):
         new[:, :, i::scale] = new[:, :, 0::scale]

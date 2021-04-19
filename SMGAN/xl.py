@@ -762,19 +762,21 @@ class MemTransformerLM(nn.Module):
         core_out = self.track_deconv1(core_out) # 1, 16, length, feature
         core_out = self.track_deconv2(core_out) # 1, track, length, feature
 
-        outputs = []
-        for i in range(self.n_track):
-            a_track = self.decoders[i](core_out[:, i, :, :]) # 1, length, nword
-            a_track = a_track[:, None, :, :] # 1, 1, length, nword
-            outputs.append(a_track)
+        # outputs = []
+        # for i in range(self.n_track):
+        #     a_track = self.decoders[i](core_out[:, i, :, :]) # 1, length, nword
+        #     a_track = a_track[:, None, :, :] # 1, 1, length, nword
+        #     outputs.append(a_track)
 
-        output = torch.cat(outputs, dim=1) # 1, track, length, nword
+        # output = torch.cat(outputs, dim=1) # 1, track, length, nword
+
+        output = core_out
 
         new_mems = self._update_mems(hids, mems, mlen, qlen)
 
         return output, new_mems
 
-    def forward(self, data, mode, p, *mems):
+    def forward(self, data, mode, p, tgt, *mems):
         # nn.DataParallel does not allow size(0) tensors to be broadcasted.
         # So, have to initialize size(0) mems inside the model forward.
         # Moreover, have to return new_mems to allow nn.DataParallel to piece
@@ -782,17 +784,36 @@ class MemTransformerLM(nn.Module):
         if not mems: mems = self.init_mems()
 
         hidden, new_mems = self._forward(data, mems=mems)
-
         if mode == "topP":
-            sample = self.topP_sampling(hidden, p) # 1, track, length
+            logits = self.crit._compute_logit(
+                hidden.view(-1, hidden.size(-1)),
+                self.crit.out_layers[0].weight,
+                self.crit.out_layers[0].bias,
+                self.crit.out_projs[0]
+                )
+            # logits = logits.view(self.tgt_len, 1, -1)
+            logits = logits.reshape([self.n_track, -1, logits.shape[-1]])[None, ] # [1, track, length, nword]
+            sample = self.topP_sampling(logits, p) # 1, track, length
             return sample, new_mems
         elif mode == "top1":
-            top1 = hidden # 1, track, length, nword
-            top1 = top1.argmax(dim=3) # 1, track, length
+            logits = self.crit._compute_logit(
+                hidden.view(-1, hidden.size(-1)),
+                self.crit.out_layers[0].weight,
+                self.crit.out_layers[0].bias,
+                self.crit.out_projs[0]
+                )
+            # logits = logits.view(self.tgt_len, 1, -1)
+            logits = logits.reshape([self.n_track, -1, logits.shape[-1]])[None, ] # [1, track, length, nword]
+            top1 = logits.argmax(dim=3) #[1, track, length]
             return top1, new_mems
         elif mode == "nword":
-            output = hidden.permute(0, 3, 1, 2) # 1, nword, track, length
-            return output, new_mems # 1, nword, track, length
+            # tgt [1, track, length]
+            output = hidden.reshape([-1, hidden.shape[-1]]) # -1(1, track, length), feature
+            tgt = tgt.reshape(-1) # -1(1, track, length)
+
+            loss = self.crit(output, tgt.long())
+
+            return loss, new_mems # 1, nword, track, length
 
 def init_weight(weight):
     # if args.init == 'uniform':
