@@ -51,10 +51,30 @@ test_single: hasname
 
 # pickle
 train_pickle: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(INDEX)_$(TYPE) --model_type $(TYPE) --niter $(N) --index $(INDEX)
 
 test_pickle: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(TYPE)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(INDEX)_$(TYPE) --niter $(N) --index $(INDEX)
+
+train_pickle_single: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(INDEX)_$(TYPE) --model_type $(TYPE) --niter $(N) --index $(INDEX) --single
+
+test_pickle_single: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(INDEX)_$(TYPE) --niter $(N) --index $(INDEX) --single
+
+##### topP
+train_pickle_topP: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(INDEX)_topP_$(TYPE) --model_type $(TYPE) --niter $(N) --index $(INDEX) --topP
+
+test_pickle_topP: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(INDEX)_$(TYPE) --niter $(N) --index $(INDEX) --topP
+
+train_pickle_single_topP: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --fs 8 --name $(NAME)_$(INDEX)_topP_$(TYPE) --model_type $(TYPE) --niter $(N) --index $(INDEX) --single --topP
+
+test_pickle_single_topP: hasname
+	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir JSB-Chorales-dataset --input_phrase ./jsb-chorales-16th.pkl --mode random_samples --name $(NAME)_$(INDEX)_$(TYPE) --niter $(N) --index $(INDEX) --single --topP
+
 
 # clean files
 cleanModels:

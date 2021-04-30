@@ -52,16 +52,14 @@ def midi2np_reshape(path, fs=8, all=False):
     data = data.reshape([shape[0], shape[1]*shape[2], shape[3], shape[4]])
     #####最大尺度输入的是bool类型矩阵(0101)
     data = (data>0)
-    if all == True:
-        return data[:, :, :, :] #[track, all_bar, time, pitch]
-    else:
-        return data[:, 0:12, :, :] #[track, all_bar, time, pitch]
+
+    return data[:, :, :, :]
 
 
 def get_kldiv_2(midiA, midiB, libB):
     """
-        [track, nbarm, 16]
-        [track, nbarm, 16]
+        [track, nbar, 16]
+        [track, nbar, 16]
         libB
     """
 
@@ -81,13 +79,16 @@ def get_kldiv_2(midiA, midiB, libB):
     for i in range(ntrack):
         distribute_A = [1e-5] * libB.n_words
         distribute_B = [1e-5] * libB.n_words
-        for v in set(midiA[i, :, :].flatten().numpy()):
+        for v in midiA[i, :, :].flatten().numpy():
             distribute_A[int(v)] += 1
-        for v in set(midiB[i, :, :].flatten().numpy()):
+        for v in midiB[i, :, :].flatten().numpy():
             distribute_B[int(v)] += 1
         kl = F.kl_div(F.log_softmax(torch.tensor(distribute_A)[None,], dim=-1), F.softmax(torch.tensor(distribute_B)[None,], dim=-1), reduction="sum")
         all_kl.append(kl.item())
     kl_score = sum(all_kl) / len(all_kl)
+    print(cover_score)
+    print(kl_score)
+    print("==== kl ^")
 
     return kl_score, cover_score
 
@@ -103,25 +104,9 @@ def get_kldiv(pathA, pathB):
 
     a = midi2np_reshape(pathA, all=False)
     libA.addSong(a)
-    generate_word_num = libA.n_words
 
     b = midi2np_reshape(pathB, all=False)
     libB.addSong(b)
-    origin_word_num = libB.n_words
-
-    cover = generate_word_num*1.0 / origin_word_num
-
-    pA = {}
-    sumA = [v for i, v in libA.word2count.items()]
-    sumA = sum(sumA)
-    for i, v in libA.word2count.items():
-        pA[i] = v*1.0
-
-    pB = {}
-    sumB = [v for i, v in libB.word2count.items()]
-    sumB = sum(sumB)
-    for i, v in libB.word2count.items():
-        pB[i] = v*1.0
 
     lib_total = Lang("total")
     lib_total.index2word = libA.index2word
@@ -136,26 +121,7 @@ def get_kldiv(pathA, pathB):
     numA = lib_total.song2num(a)
     numB = lib_total.song2num(b)
 
-    if numA.shape[0] != numB.shape[0]:
-        print("track mismatch")
-        print(numA.shape[0], "  <>  " ,numB.shape[0])
-        return -1, cover
-
-    kl_track = []
-    for i in range(numA.shape[0]):
-        
-        countA = [0] * lib_total.n_words
-        tmpA = numA[i].reshape(-1)
-        for v in tmpA:
-            countA[int(v)] += 1.0
-
-        countB = [0] * lib_total.n_words
-        tmpB = numB[i].reshape(-1)
-        for v in tmpB:
-            countB[int(v)] += 1.0
-        kl = F.kl_div(F.log_softmax(torch.tensor(countA)[None,], dim=-1), F.softmax(torch.tensor(countB)[None,], dim=-1), reduction="sum")
-        kl_track.append(kl.item())
-    return sum(kl_track) / len(kl_track), cover
+    return get_kldiv_2(numA, numB, lib_total)
 
 
 if __name__ == '__main__':

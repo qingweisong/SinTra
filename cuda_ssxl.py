@@ -21,7 +21,7 @@ for path,d,filelist in g:
 
 print(len(midi))
 
-subset = midi[0:5]
+subset = midi[0:200]
 for path, mid in tqdm(subset):
     os.system("make train_single CUDA={} NAME=default TYPE=xl N=400 DIR={} FILE={}".format(cuda, path, mid))
     print("*******************************************")

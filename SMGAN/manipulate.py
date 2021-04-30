@@ -285,9 +285,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         real_ = functions.load_phrase_from_npz(opt)#原 5
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
-
-    real_ = midi2np(opt)
-    real_ = midiArrayReshape(real_, opt)
+    else:
+        real_ = midi2np(opt)
+        real_ = midiArrayReshape(real_, opt)
 
     print("Input real_ shape = ", real_.shape)
 
@@ -322,6 +322,18 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print(">>>>>>>>>>>> Multi Stage Model >>>>>>>>>>>>>>>>>>")
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+    if opt.topP == True:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>> topP Model >>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        toptype = "topP"
+    if opt.topP == False:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>    top1 Model  >>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        toptype = "top1"
+
     
     if opt.single == False:
         all_kl = []
@@ -343,7 +355,11 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             concat_mems = [tuple() for _ in range(len(Gs))]
             for l in range(nbar):
                 for i, G in enumerate(Gs):
-                    G_z, new_mem = G(G_z, mode="topP", p=0.3, mems=concat_mems[i])
+                    if i == 0:
+                        local_top_type=toptype
+                    else:
+                        local_top_type="top1"
+                    G_z, new_mem = G(G_z, mode=local_top_type, p=0.99, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     if i == 0:
                         in_4th = G_z
@@ -414,7 +430,7 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             concat_mems = [tuple() for _ in range(len(Gs))]
             for l in range(nbar):
                 for i, G in enumerate(Gs):
-                    G_z, new_mem = G(G_z, mode="topP", p=0.4, mems=concat_mems[i])
+                    G_z, new_mem = G(G_z, mode=toptype, p=0.99, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     in_16th = G_z
                 song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]

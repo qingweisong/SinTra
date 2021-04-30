@@ -73,10 +73,16 @@ def load_phrase_from_pickle(opt, all=False):
     # 1 bar has 16 step
     with open('training_data/%s/%s' % (opt.input_dir, opt.input_phrase), 'rb') as p:
         data = pickle.load(p, encoding="latin1")
-        data = data['train'][0] # len = 192
+        # data = data['train'][opt.index] # len = 192   totoal is 229
+        data_train = data['train']
+        data_test = data["test"]
+        data_valid = data["valid"]
+        data = data_train + data_test + data_valid
+        data = data[opt.index] # 229   77   76
+
         song = np.zeros([1, 4*16 * (len(data) // (4*16)), 128])
         for i in range(4*16 * (len(data) // (4*16))):
-            pitch = data[i]
+            pitch = list(map(int, data[i]))
             song[0, i, pitch] = 1
 
 

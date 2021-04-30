@@ -16,6 +16,8 @@ if __name__ == '__main__':
     parser.add_argument('--name', help='describe this time ', default='train')
     parser.add_argument('--model_type', help='describe this time ', default='transformerXL')
     parser.add_argument('--single', action="store_true", help='single mode')
+    parser.add_argument('--index', type=int, help='index for train dataset', default=0)
+    parser.add_argument('--topP', action="store_true", help='topP')
     opt = parser.parse_args()
 
 
@@ -49,6 +51,7 @@ if __name__ == '__main__':
             "niter": opt.niter,
             "model_type": opt.model_type,
             "path": dir2save,
+            "index": opt.index,
             "info": ""
         }
     )
@@ -71,9 +74,9 @@ if __name__ == '__main__':
         real_ = functions.load_phrase_from_npz(opt)
     if opt.input_dir == 'JSB-Chorales-dataset':
         real_ = functions.load_phrase_from_pickle(opt)
-
-    real_ = midi2np(opt)
-    real_ = midiArrayReshape(real_, opt)
+    else:
+        real_ = midi2np(opt)
+        real_ = midiArrayReshape(real_, opt)
     
     # import ipdb; ipdb.set_trace()
 
