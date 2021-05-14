@@ -5,10 +5,12 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--cuda_num', help='cuda num', required=True)
+parser.add_argument('--start', type=int, help='start index')
+parser.add_argument('--end', type=int, help='end index')
 opt = parser.parse_args()
 cuda = int(opt.cuda_num)
 
-g = os.walk("training_data/c-rnn-gan-master/data/classical")
+g = os.walk("training_data/midi")
 midi = []
 for path,d,filelist in g:
     for filename in filelist:
@@ -21,7 +23,7 @@ for path,d,filelist in g:
 
 print(len(midi))
 
-subset = midi[0:200]
+subset = midi[opt.start:opt.end]
 for path, mid in tqdm(subset):
     os.system("make train CUDA={} NAME=default TYPE=xl N=400 DIR={} FILE={}".format(cuda, path, mid))
     print("*******************************************")

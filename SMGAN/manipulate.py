@@ -357,9 +357,11 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                 for i, G in enumerate(Gs):
                     if i == 0:
                         local_top_type=toptype
+                        topP = 0.99
                     else:
                         local_top_type="top1"
-                    G_z, new_mem = G(G_z, mode=local_top_type, p=0.99, mems=concat_mems[i])
+                        topP = 0.3
+                    G_z, new_mem = G(G_z, mode=local_top_type, p=topP, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     if i == 0:
                         in_4th = G_z

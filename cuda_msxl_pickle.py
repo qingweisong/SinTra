@@ -6,6 +6,8 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--cuda_num', help='cuda num', required=True)
 parser.add_argument('--topP', action="store_true", help='topP')
+parser.add_argument('--start', type=int, help='start index')
+parser.add_argument('--end', type=int, help='end index')
 opt = parser.parse_args()
 
 cuda = int(opt.cuda_num)
@@ -26,7 +28,7 @@ else:
 #             print("==========="*5)
 #             midi.append(["/".join(path.split("/")[1:]), filename])
 
-for index in tqdm(range(229, 382)):
+for index in tqdm(range(opt.start, opt.end)):
     os.system("make train_pickle{} CUDA={} NAME=p TYPE=xl N=400 DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX={}".format(toptype, cuda, index))
     print("*******************************************")
     print("**************   END   ********************")

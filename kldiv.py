@@ -68,10 +68,10 @@ def get_kldiv_2(midiA, midiB, libB):
     # cover
     all_cover = []
     for i in range(ntrack):
-        num_pitch_A = len(set(midiA[i, :, :].flatten().numpy()))
-        num_pitch_B = len(set(midiB[i, :, :].flatten().numpy()))
-        cover = abs(num_pitch_A - num_pitch_B)
-        all_cover.append(cover / num_pitch_B)
+        num_pitch_A = set(midiA[i, :, :].flatten().numpy())
+        num_pitch_B = set(midiB[i, :, :].flatten().numpy())
+        cover = len((num_pitch_A | num_pitch_B) - (num_pitch_A & num_pitch_B))
+        all_cover.append(cover / len(num_pitch_A | num_pitch_B))
     cover_score = sum(all_cover) / len(all_cover)
 
     # kl

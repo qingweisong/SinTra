@@ -37,14 +37,14 @@ run: train
 
 # multi stage
 train: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N)
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name $(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --topP
 
 test: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name $(NAME)_$(TYPE)
 
 # single stage
 train_single: hasname
-	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name SS_$(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single
+	CUDA_VISIBLE_DEVICES=$(CUDA) python main.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --name SS_$(NAME)_$(TYPE) --model_type $(TYPE) --niter $(N) --single --topP
 
 test_single: hasname
 	CUDA_VISIBLE_DEVICES=$(CUDA) python random_sample_word.py --input_dir $(DIR) --input_phrase $(FILE) --fs 8 --mode random_samples --name SS_$(NAME)_$(TYPE) --single
