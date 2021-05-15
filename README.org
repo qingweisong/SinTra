@@ -1,0 +1,17 @@
+* SinTra
+*This work is still under development*
+
+** Requirement
+  1. [[https://github.com/czhuang/JSB-Chorales-dataset][JSB Chorale datasets]] pickle or MIDI.
+  2. some multi-track MIDIs.
+  Put MIDIs in train_data/, such as =train_data/JSB-Chorales-dataset/*.pickle= and =train_data/midi/*.mid=
+
+** Usage
+  1. train and evaluate with MIDI
+  =make train CUDA=0 NAME=test TYPE=xl N=400 DIR=midi FILE=xxx.mid=
+  =make test  CUDA=0 NAME=test TYPE=xl       DIR=midi FILE=xxx.mid=
+  
+  2. train and evaluate with pickle (JSB chorales dataset)
+  =make train_pickle CUDA=0 NAME=test TYPE=xl N=400 DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX=0=
+  =make test_pickle  CUDA=0 NAME=test TYPE=xl       DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX=0=
+  
