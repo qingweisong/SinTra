@@ -308,6 +308,8 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
         os.makedirs(dir2save)
         os.makedirs(dir2save+"/16th/")
         os.makedirs(dir2save+"/8th/")
+        os.makedirs(dir2save+"/fake16th/")
+        os.makedirs(dir2save+"/fake8th/")
         os.makedirs(dir2save+"/4th/")
     except OSError as e:
         print(e)
@@ -347,20 +349,26 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             in_4th = din
             G_z = din
 
+            fake_8th = 0
+            fake_16th = 0
+
             song4th = torch.zeros([1, opt.ntrack, nbar*4], dtype=torch.long)
             song8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
             song16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
             # print("din length: ", din.shape[2])
+
+            fake8th = torch.zeros([1, opt.ntrack, nbar*8], dtype=torch.long)
+            fake16th = torch.zeros([1, opt.ntrack, nbar*16], dtype=torch.long)
 
             concat_mems = [tuple() for _ in range(len(Gs))]
             for l in range(nbar):
                 for i, G in enumerate(Gs):
                     if i == 0:
                         local_top_type=toptype
-                        topP = 0.99
+                        topP = 0.4
                     else:
                         local_top_type="top1"
-                        topP = 0.3
+                        topP = 0.15
                     G_z, new_mem = G(G_z, mode=local_top_type, p=topP, mems=concat_mems[i])
                     concat_mems[i] = new_mem
                     if i == 0:
@@ -372,9 +380,16 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
                     if i != (len(Gs)-1):
                         cur_scale = 2
                         G_z = word_upsample(G_z, cur_scale)
+                        if i == 0:
+                            fake_8th = G_z
+                        if i == 1:
+                            fake_16th = G_z
                 song16th[:, :, l*4*4:(l+1)*4*4] = in_16th[:, :, :]
                 song8th[:, :,  l*2*4:(l+1)*2*4] = in_8th[:, :, :]
                 song4th[:, :,  l*1*4:(l+1)*1*4] = in_4th[:, :, :]
+
+                fake16th[:, :, l*4*4:(l+1)*4*4] = fake_16th[:, :, :]
+                fake8th[:, :,  l*2*4:(l+1)*2*4] = fake_8th[:, :, :]
                 G_z = in_4th
             
             song16th = song16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
@@ -386,6 +401,12 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
 
             song4th = song4th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
             song4th = lib.num2song(song4th[0])[None, ] # [1, track, nbar, length, pitch]
+
+            fake16th = fake16th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            fake16th = lib.num2song(fake16th[0])[None, ] # [1, track, nbar, length, pitch]
+
+            fake8th = fake8th.reshape([1, opt.ntrack, nbar, -1]) # [1, track, nbar, time]
+            fake8th = lib.num2song(fake8th[0])[None, ] # [1, track, nbar, length, pitch]
 
 
 
@@ -401,6 +422,9 @@ def SMGAN_generate_word(Gs, opt, num_samples=10, wandb_enable=True):
             save_pic_midi(song16th, dir2save+"/16th",     ii, opt, 4, False | wandb_enable)
             save_pic_midi(song8th,  dir2save+"/8th",      ii, opt, 2, False)
             save_pic_midi(song4th,  dir2save+"/4th",      ii, opt, 1, False)
+
+            save_pic_midi(fake16th, dir2save+"/fake16th",     ii, opt, 4, False)
+            save_pic_midi(fake8th,  dir2save+"/fake8th",      ii, opt, 2, False)
 
             
             kl, cover = get_kldiv_2(song16th_forkl.cpu(), reals_num[-1].cpu(), lib)
