@@ -9,9 +9,11 @@
 ** Usage
   1. train and evaluate with MIDI
   =make train CUDA=0 NAME=test TYPE=xl N=400 DIR=midi FILE=xxx.mid=
+  
   =make test  CUDA=0 NAME=test TYPE=xl       DIR=midi FILE=xxx.mid=
   
   2. train and evaluate with pickle (JSB chorales dataset)
   =make train_pickle CUDA=0 NAME=test TYPE=xl N=400 DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX=0=
+  
   =make test_pickle  CUDA=0 NAME=test TYPE=xl       DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX=0=
   
