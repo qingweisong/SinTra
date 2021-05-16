@@ -17,3 +17,5 @@
   
   =make test_pickle  CUDA=0 NAME=test TYPE=xl       DIR=JSB-Chorales-dataset FILE=jsb-chorales-16th.pkl INDEX=0=
   
+** Samples
+  - [[https://drive.google.com/drive/folders/1-X1hmdvEcBiqlL1Si6BSLLzeKOyfGEXw?usp=sharing][Google Drive]]
