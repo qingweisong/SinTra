@@ -19,3 +19,16 @@
   
 ** Samples
   - [[https://drive.google.com/drive/folders/1-X1hmdvEcBiqlL1Si6BSLLzeKOyfGEXw?usp=sharing][Google Drive]]
+
+
+** Citation
+  If you use this code for your research, please cite our paper:
+
+  #+BEGIN_SRC bibtex
+    @inproceedings{sintra2021,
+      title={Sin{T}ra: Learning an inspiration model from a single multi-track music segment},
+      author={Qingwei Song, Qiwei Sun, Dongsheng Guo, Haiyong Zheng},
+      booktitle={Proceedings of the 22nd Conference of the International Society for Music Information Retrieval},
+      year={2021}
+    }
+  #+END_SRC
