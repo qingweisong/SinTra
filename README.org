@@ -1,4 +1,4 @@
-* SinTra
+* SinTra 🎻
 *This work is still under development*
 
 Torch implementation for an auto-regressive sequential generative model that can learn from a single multi-track music segment, to generate coherent, aesthetic, and variable polyphonic music of multi-instruments with an arbitrary length of bar. Such as: 
