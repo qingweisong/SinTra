@@ -37,4 +37,4 @@ Torch implementation for an auto-regressive sequential generative model that can
     }
   #+END_SRC
 
-  Feel free to contact me！ =songqingyu#stu.ouc.edu.cn=
+  Feel free to contact me！ =songqingyu@stu.ouc.edu.cn=
